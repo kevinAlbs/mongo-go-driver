@@ -71,6 +71,7 @@ type Client struct {
 	keyVaultColl   *Collection
 	mongocryptd    *mcryptClient
 	crypt          *driver.Crypt
+	metadataClient *Client
 }
 
 // Connect creates a new Client and then initializes it using the Connect method. This is equivalent to calling
@@ -167,6 +168,12 @@ func (c *Client) Connect(ctx context.Context) error {
 		}
 	}
 
+	if c.metadataClient != nil {
+		if err := c.metadataClient.Connect(ctx); err != nil {
+			return err
+		}
+	}
+
 	var updateChan <-chan description.Topology
 	if subscriber, ok := c.deployment.(driver.Subscriber); ok {
 		sub, err := subscriber.Subscribe()
@@ -200,6 +207,11 @@ func (c *Client) Disconnect(ctx context.Context) error {
 	}
 	if c.keyVaultClient != nil {
 		if err := c.keyVaultClient.Disconnect(ctx); err != nil {
+			return err
+		}
+	}
+	if c.metadataClient != nil {
+		if err := c.metadataClient.Disconnect(ctx); err != nil {
 			return err
 		}
 	}
@@ -617,6 +629,9 @@ func (c *Client) configureAutoEncryption(opts *options.AutoEncryptionOptions) er
 	if err := c.configureMongocryptd(opts); err != nil {
 		return err
 	}
+	if err := c.configureMetadata(opts); err != nil {
+		return err
+	}
 	return c.configureCrypt(opts)
 }
 
@@ -636,6 +651,17 @@ func (c *Client) configureKeyVault(opts *options.AutoEncryptionOptions) error {
 		client = c
 	}
 	c.keyVaultColl = client.Database(dbName).Collection(collName, keyVaultCollOpts)
+	return nil
+}
+
+func (c *Client) configureMetadata(opts *options.AutoEncryptionOptions) error {
+	if opts.MetadataClientOptions != nil {
+		var err error
+		c.metadataClient, err = NewClient(opts.MetadataClientOptions)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -666,7 +692,12 @@ func (c *Client) configureCrypt(opts *options.AutoEncryptionOptions) error {
 		bypass = *opts.BypassAutoEncryption
 	}
 	kr := keyRetriever{coll: c.keyVaultColl}
-	cir := collInfoRetriever{client: c}
+	var cir collInfoRetriever
+	if c.metadataClient != nil {
+		cir = collInfoRetriever{client: c.metadataClient}
+	} else {
+		cir = collInfoRetriever{client: c}
+	}
 	cryptOpts := &driver.CryptOptions{
 		CollInfoFn:           cir.cryptCollInfo,
 		KeyFn:                kr.cryptKeys,

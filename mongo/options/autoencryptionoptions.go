@@ -21,6 +21,7 @@ package options
 // Enabling Client Side Encryption reduces the maximum document and message size (using a maxBsonObjectSize of 2MiB and
 // maxMessageSizeBytes of 6MB) and may have a negative performance impact.
 type AutoEncryptionOptions struct {
+	MetadataClientOptions *ClientOptions
 	KeyVaultClientOptions *ClientOptions
 	KeyVaultNamespace     string
 	KmsProviders          map[string]map[string]interface{}
@@ -106,4 +107,11 @@ func MergeAutoEncryptionOptions(opts ...*AutoEncryptionOptions) *AutoEncryptionO
 	}
 
 	return aeo
+}
+
+// SetMetadataOptions specifies options for the client used to send listCollections commands. If this is
+// not set, the client used to do encryption will be re-used.
+func (a *AutoEncryptionOptions) SetMetadataClientOptions(opts *ClientOptions) *AutoEncryptionOptions {
+	a.MetadataClientOptions = opts
+	return a
 }
