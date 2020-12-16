@@ -72,6 +72,7 @@ type Client struct {
 	mongocryptd    *mcryptClient
 	crypt          *driver.Crypt
 	metadataClient *Client
+	internalClient *Client
 }
 
 // Connect creates a new Client and then initializes it using the Connect method. This is equivalent to calling
@@ -162,13 +163,20 @@ func (c *Client) Connect(ctx context.Context) error {
 			return err
 		}
 	}
-	if c.keyVaultClient != nil {
+
+	if c.internalClient != nil {
+		if err := c.internalClient.Connect(ctx); err != nil {
+			return err
+		}
+	}
+
+	if c.keyVaultClient != nil && c.keyVaultClient != c.internalClient {
 		if err := c.keyVaultClient.Connect(ctx); err != nil {
 			return err
 		}
 	}
 
-	if c.metadataClient != nil {
+	if c.metadataClient != nil && c.metadataClient != c.internalClient {
 		if err := c.metadataClient.Connect(ctx); err != nil {
 			return err
 		}
@@ -205,12 +213,19 @@ func (c *Client) Disconnect(ctx context.Context) error {
 			return err
 		}
 	}
-	if c.keyVaultClient != nil {
+
+	if c.internalClient != nil {
+		if err := c.internalClient.Disconnect(ctx); err != nil {
+			return err
+		}
+	}
+
+	if c.keyVaultClient != nil && c.keyVaultClient != c.internalClient {
 		if err := c.keyVaultClient.Disconnect(ctx); err != nil {
 			return err
 		}
 	}
-	if c.metadataClient != nil {
+	if c.metadataClient != nil && c.metadataClient != c.internalClient {
 		if err := c.metadataClient.Disconnect(ctx); err != nil {
 			return err
 		}
@@ -580,7 +595,7 @@ func (c *Client) configure(opts *options.ClientOptions) error {
 	}
 	// AutoEncryptionOptions
 	if opts.AutoEncryptionOptions != nil {
-		if err := c.configureAutoEncryption(opts.AutoEncryptionOptions); err != nil {
+		if err := c.configureAutoEncryption(opts, opts.AutoEncryptionOptions); err != nil {
 			return err
 		}
 	}
@@ -622,46 +637,65 @@ func (c *Client) configure(opts *options.ClientOptions) error {
 	return nil
 }
 
-func (c *Client) configureAutoEncryption(opts *options.AutoEncryptionOptions) error {
-	if err := c.configureKeyVault(opts); err != nil {
+func (c *Client) configureAutoEncryption(clientOpts *options.ClientOptions, opts *options.AutoEncryptionOptions) error {
+	if err := c.configureKeyVault(clientOpts, opts); err != nil {
+		return err
+	}
+	if err := c.configureMetadata(clientOpts, opts); err != nil {
 		return err
 	}
 	if err := c.configureMongocryptd(opts); err != nil {
 		return err
 	}
-	if err := c.configureMetadata(opts); err != nil {
-		return err
-	}
 	return c.configureCrypt(opts)
 }
 
-func (c *Client) configureKeyVault(opts *options.AutoEncryptionOptions) error {
-	// parse key vault options and create new client if necessary
+func (c *Client) getOrCreateInternalClient(clientOpts *options.ClientOptions) (*Client, error) {
+	if c.internalClient != nil {
+		return c.internalClient, nil
+	}
+
+	internalClientOpts := options.MergeClientOptions(clientOpts)
+	internalClientOpts.AutoEncryptionOptions = nil
+	return NewClient(internalClientOpts)
+}
+
+func (c *Client) configureKeyVault(clientOpts *options.ClientOptions, opts *options.AutoEncryptionOptions) error {
+	// parse key vault options and create new key vault client
+	var err error
 	if opts.KeyVaultClientOptions != nil {
-		var err error
-		c.keyVaultClient, err = NewClient(opts.KeyVaultClientOptions)
-		if err != nil {
+		if c.keyVaultClient, err = NewClient(opts.KeyVaultClientOptions); err != nil {
+			return err
+		}
+	} else {
+		if c.keyVaultClient, err = c.getOrCreateInternalClient(clientOpts); err != nil {
 			return err
 		}
 	}
 
 	dbName, collName := splitNamespace(opts.KeyVaultNamespace)
-	client := c.keyVaultClient
-	if client == nil {
-		client = c
-	}
-	c.keyVaultColl = client.Database(dbName).Collection(collName, keyVaultCollOpts)
+	c.keyVaultColl = c.keyVaultClient.Database(dbName).Collection(collName, keyVaultCollOpts)
+
 	return nil
 }
 
-func (c *Client) configureMetadata(opts *options.AutoEncryptionOptions) error {
+func (c *Client) configureMetadata(clientOpts *options.ClientOptions, opts *options.AutoEncryptionOptions) error {
+	// parse key vault options and create new key vault client
+	var err error
+	if opts.BypassAutoEncryption != nil && *opts.BypassAutoEncryption {
+		// no need for a metadata client.
+		return nil
+	}
 	if opts.MetadataClientOptions != nil {
-		var err error
-		c.metadataClient, err = NewClient(opts.MetadataClientOptions)
-		if err != nil {
+		if c.metadataClient, err = NewClient(opts.MetadataClientOptions); err != nil {
+			return err
+		}
+	} else {
+		if c.metadataClient, err = c.getOrCreateInternalClient(clientOpts); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 

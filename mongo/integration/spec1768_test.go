@@ -20,7 +20,7 @@ import (
 	"io/ioutil"
 )
 
-// Test with: go test ./mongo/integration -tags cse -v -run TestSpec1768Case4
+// Test with: go test ./mongo/integration -tags cse -v -run TestSpec1768
 // TODO: This is mega-jank.
 //
 const DEBUG = false
@@ -55,6 +55,7 @@ type DeadlockTest struct {
 	clientKeyVaultEvents []bson.Raw
 	clientEncryption     *mongo.ClientEncryption
 	ciphertext           primitive.Binary
+	mutex                sync.Mutex
 }
 
 func getKMSProviders() map[string]map[string]interface{} {
@@ -70,7 +71,7 @@ func getKMSProviders() map[string]map[string]interface{} {
 	return kmsProviders
 }
 
-func makeCaptureMonitor(name string, dest *[]bson.Raw) *event.CommandMonitor {
+func makeCaptureMonitor(name string, dest *[]bson.Raw, mutex *sync.Mutex) *event.CommandMonitor {
 	return &event.CommandMonitor{func(ctx context.Context, event *event.CommandStartedEvent) {
 		fmt.Printf("[%v] command started (%v, %v)\n", name, event.CommandName, event.DatabaseName)
 		if DEBUG {
@@ -78,27 +79,30 @@ func makeCaptureMonitor(name string, dest *[]bson.Raw) *event.CommandMonitor {
 		}
 		tmp := make(bson.Raw, len(event.Command))
 		copy(tmp, event.Command)
+		mutex.Lock()
+		defer mutex.Unlock()
 		*dest = append(*dest, tmp)
 	}, nil, nil}
 }
+
+const uri = "mongodb://localhost:27017/?readConcernLevel=majority&w=majority"
 
 func doTestSetup() *DeadlockTest {
 	d := DeadlockTest{}
 	ctx := context.Background()
 	var err error
 
-	// TODO: configure with read/write concern majority.
-	clientTestOpts := options.Client().ApplyURI("mongodb://localhost:27017").SetMaxPoolSize(1)
+	clientTestOpts := options.Client().ApplyURI(uri).SetMaxPoolSize(1)
 	if d.clientTest, err = mongo.Connect(ctx, clientTestOpts); err != nil {
 		log.Fatal(err)
 	}
 
-	d.clientMetadataOpts = options.Client().ApplyURI("mongodb://localhost:27017").SetMaxPoolSize(1)
-	d.clientMetadataOpts.SetMonitor(makeCaptureMonitor("clientMetadata", &d.clientMetadataEvents))
+	d.clientMetadataOpts = options.Client().ApplyURI(uri).SetMaxPoolSize(1)
+	d.clientMetadataOpts.SetMonitor(makeCaptureMonitor("clientMetadata", &d.clientMetadataEvents, &d.mutex))
 
 	// Go driver takes client options, not a client, to configure the key vault client.
-	d.clientKeyVaultOpts = options.Client().ApplyURI("mongodb://localhost:27017").SetMaxPoolSize(1)
-	d.clientKeyVaultOpts.SetMonitor(makeCaptureMonitor("clientKeyVault", &d.clientKeyVaultEvents))
+	d.clientKeyVaultOpts = options.Client().ApplyURI(uri).SetMaxPoolSize(1)
+	d.clientKeyVaultOpts.SetMonitor(makeCaptureMonitor("clientKeyVault", &d.clientKeyVaultEvents, &d.mutex))
 
 	keyvaultColl := d.clientTest.Database("keyvault").Collection("datakeys")
 	dataColl := d.clientTest.Database("db").Collection("coll")
@@ -158,156 +162,124 @@ func doTestSetup() *DeadlockTest {
 	return &d
 }
 
-func TestSpec1768Case4(t *testing.T) {
-	d := doTestSetup()
-	ctx := context.Background()
-
-	var clientEncryptedEvents []bson.Raw
-
-	aeOpts := options.AutoEncryption()
-	aeOpts.SetKeyVaultNamespace("keyvault.datakeys")
-	aeOpts.SetKmsProviders(getKMSProviders())
-	aeOpts.SetKeyVaultClientOptions(d.clientKeyVaultOpts)
-	aeOpts.SetBypassAutoEncryption(true)
-
-	ceOpts := options.Client().ApplyURI("mongodb://localhost:27017")
-	ceOpts.SetMonitor(makeCaptureMonitor("clientEncrypted", &clientEncryptedEvents))
-	ceOpts.SetMaxPoolSize(1)
-	ceOpts.SetAutoEncryptionOptions(aeOpts)
-
-	clientEncrypted, err := mongo.Connect(ctx, ceOpts)
-	if err != nil {
-		log.Fatal(err)
-	}
-	coll := clientEncrypted.Database("db").Collection("coll")
-	_, err = coll.InsertOne(ctx, bson.M{"_id": 0, "encrypted": d.ciphertext})
-	if err != nil {
-		log.Fatal(err)
+func TestSpec1768(t *testing.T) {
+	testcases := []struct {
+		description                           string
+		bypassAutoEncryptionSet               bool
+		keyVaultClientSet                     bool
+		metadataClientSet                     bool
+		clientEncryptedCommandStartedExpected int
+		clientKeyVaultCommandStartedExpected  int
+		clientMetadataCommandStartedExpected  int
+	}{
+		{"case 1", false, false, false, 4, 0, 0},
+		{"case 2", false, false, true, 3, 0, 1},
+		{"case 3", false, true, false, 3, 1, 0},
+		{"case 4", false, true, true, 2, 1, 1},
+		{"case 5", true, false, false, 3, 0, 0},
+		{"case 6", true, false, true, 3, 0, 0},
+		{"case 7", true, true, false, 2, 1, 0},
+		{"case 8", true, true, true, 2, 1, 0},
 	}
 
-	res := coll.FindOne(ctx, bson.M{"_id": 0})
-	if res.Err() != nil {
-		log.Fatal(res.Err())
-	}
-	// TODO: what is the right way to compare BSON.
-	if raw, err := res.DecodeBytes(); err != nil {
-		log.Fatal(res.Err())
-	} else {
-		expected, _ := bson.Marshal(bson.D{{"_id", 0}, {"encrypted", "string0"}})
-		if bytes.Compare(expected, raw) != 0 {
-			log.Fatal("not equal")
-		}
-	}
+	for _, tc := range testcases {
+		t.Run(tc.description, func(t *testing.T) {
+			var clientEncryptedEvents []bson.Raw
 
-	// TODO: actually compare the command started event commands.
-	if len(clientEncryptedEvents) != 2 {
-		log.Fatal("expected 2 events in clientEncryptedEvents")
-	}
+			d := doTestSetup()
+			ctx := context.Background()
+			aeOpts := options.AutoEncryption()
+			aeOpts.SetKeyVaultNamespace("keyvault.datakeys")
+			aeOpts.SetKmsProviders(getKMSProviders())
+			if tc.keyVaultClientSet {
+				aeOpts.SetKeyVaultClientOptions(d.clientKeyVaultOpts)
+			}
 
-	if len(d.clientKeyVaultEvents) != 1 {
-		log.Fatal("expected 1 event in clientKeyVaultEvents")
-	}
+			if tc.metadataClientSet {
+				aeOpts.SetMetadataClientOptions(d.clientMetadataOpts)
+			}
 
-	if len(d.clientMetadataEvents) != 0 {
-		log.Fatal("expected 0 event in clientMetadataEvents")
-	}
-}
+			aeOpts.SetBypassAutoEncryption(tc.bypassAutoEncryptionSet)
 
-func TestSpec1768Case5(t *testing.T) {
-	d := doTestSetup()
-	ctx := context.Background()
+			ceOpts := options.Client().ApplyURI(uri)
+			ceOpts.SetMonitor(makeCaptureMonitor("clientEncrypted", &clientEncryptedEvents, &d.mutex))
+			ceOpts.SetMaxPoolSize(1)
+			ceOpts.SetAutoEncryptionOptions(aeOpts)
 
-	aeOpts := options.AutoEncryption().SetKeyVaultNamespace("keyvault.datakeys").SetKmsProviders(getKMSProviders())
-	aeOpts.SetKeyVaultClientOptions(d.clientKeyVaultOpts)
-	aeOpts.SetMetadataClientOptions(d.clientMetadataOpts)
-
-	var clientEncryptedEvents []bson.Raw
-	ceOpts := options.Client().ApplyURI("mongodb://localhost:27017")
-	ceOpts.SetMonitor(makeCaptureMonitor("clientEncrypted", &clientEncryptedEvents))
-	ceOpts.SetMaxPoolSize(1)
-	ceOpts.SetAutoEncryptionOptions(aeOpts)
-
-	clientEncrypted, err := mongo.Connect(ctx, ceOpts)
-	if err != nil {
-		log.Fatal(err)
-	}
-	coll := clientEncrypted.Database("db").Collection("coll")
-	_, err = coll.InsertOne(ctx, bson.M{"_id": 0, "encrypted": "string0"})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	res := coll.FindOne(ctx, bson.M{"_id": 0})
-	if res.Err() != nil {
-		log.Fatal(res.Err())
-	}
-	// TODO: what is the right way to compare BSON.
-	if raw, err := res.DecodeBytes(); err != nil {
-		log.Fatal(res.Err())
-	} else {
-		expected, _ := bson.Marshal(bson.D{{"_id", 0}, {"encrypted", "string0"}})
-		if bytes.Compare(expected, raw) != 0 {
-			log.Fatal("not equal")
-		}
-	}
-
-	// TODO: actually compare the command started event commands.
-	if len(clientEncryptedEvents) != 2 {
-		log.Fatal("expected 2 events in clientEncryptedEvents")
-	}
-
-	if len(d.clientKeyVaultEvents) != 1 {
-		log.Fatal("expected 1 event in clientKeyVaultEvents")
-	}
-
-	if len(d.clientMetadataEvents) != 1 {
-		log.Fatal("expected 1 event in clientMetadataEvents")
-	}
-}
-
-func TestSpec1768Case6(t *testing.T) {
-	d := doTestSetup()
-	ctx := context.Background()
-
-	aeOpts := options.AutoEncryption().SetKeyVaultNamespace("keyvault.datakeys").SetKmsProviders(getKMSProviders())
-	aeOpts.SetKeyVaultClientOptions(d.clientKeyVaultOpts)
-	aeOpts.SetMetadataClientOptions(d.clientMetadataOpts)
-
-	ceOpts := options.Client().ApplyURI("mongodb://localhost:27017")
-	ceOpts.SetMaxPoolSize(1)
-	ceOpts.SetAutoEncryptionOptions(aeOpts)
-
-	clientEncrypted, err := mongo.Connect(ctx, ceOpts)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func(i int) {
-			coll := clientEncrypted.Database("db").Collection("coll")
-			_, err = coll.InsertOne(ctx, bson.M{"_id": i, "encrypted": "string0"})
+			clientEncrypted, err := mongo.Connect(ctx, ceOpts)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			res := coll.FindOne(ctx, bson.M{"_id": i})
+			coll := clientEncrypted.Database("db").Collection("coll")
+			if !tc.bypassAutoEncryptionSet {
+				_, err = coll.InsertOne(ctx, bson.M{"_id": 0, "encrypted": "string0"})
+			} else {
+				_, err = coll.InsertOne(ctx, bson.M{"_id": 0, "encrypted": d.ciphertext})
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			res := coll.FindOne(ctx, bson.M{"_id": 0})
 			if res.Err() != nil {
 				log.Fatal(res.Err())
 			}
+
 			// TODO: what is the right way to compare BSON.
 			if raw, err := res.DecodeBytes(); err != nil {
 				log.Fatal(res.Err())
 			} else {
-				expected, _ := bson.Marshal(bson.D{{"_id", i}, {"encrypted", "string0"}})
+				expected, _ := bson.Marshal(bson.D{{"_id", 0}, {"encrypted", "string0"}})
 				if bytes.Compare(expected, raw) != 0 {
 					log.Fatal("not equal")
 				}
 			}
-			wg.Done()
-		}(i)
-	}
 
-	wg.Wait()
+			// TODO: actually compare the command started event commands, not just the lengths.
+			if len(clientEncryptedEvents) != tc.clientEncryptedCommandStartedExpected {
+				log.Fatalf("expected %v events in clientEncryptedEvents, got %v", tc.clientEncryptedCommandStartedExpected, len(clientEncryptedEvents))
+			}
+
+			if len(d.clientKeyVaultEvents) != tc.clientKeyVaultCommandStartedExpected {
+				log.Fatalf("expected %v events in clientKeyVaultEvents, got %v", tc.clientKeyVaultCommandStartedExpected, len(d.clientKeyVaultEvents))
+			}
+
+			if len(d.clientMetadataEvents) != tc.clientMetadataCommandStartedExpected {
+				log.Fatalf("expected %v events in clientMetadataEvents, got %v", tc.clientMetadataCommandStartedExpected, len(d.clientMetadataEvents))
+			}
+
+			var wg sync.WaitGroup
+			for i := 1; i <= 10; i++ {
+				wg.Add(1)
+				go func(i int) {
+					coll := clientEncrypted.Database("db").Collection("coll")
+					if !tc.bypassAutoEncryptionSet {
+						_, err = coll.InsertOne(ctx, bson.M{"_id": i, "encrypted": "string0"})
+					} else {
+						_, err = coll.InsertOne(ctx, bson.M{"_id": i, "encrypted": d.ciphertext})
+					}
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					res := coll.FindOne(ctx, bson.M{"_id": i})
+					if res.Err() != nil {
+						log.Fatal(res.Err())
+					}
+					// TODO: what is the right way to compare BSON.
+					if raw, err := res.DecodeBytes(); err != nil {
+						log.Fatal(res.Err())
+					} else {
+						expected, _ := bson.Marshal(bson.D{{"_id", i}, {"encrypted", "string0"}})
+						if bytes.Compare(expected, raw) != 0 {
+							log.Fatal("not equal")
+						}
+					}
+					wg.Done()
+				}(i)
+				wg.Wait()
+			}
+		})
+	}
 }
