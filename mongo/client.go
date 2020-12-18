@@ -170,13 +170,13 @@ func (c *Client) Connect(ctx context.Context) error {
 		}
 	}
 
-	if c.keyVaultClient != nil && c.keyVaultClient != c.internalClient {
+	if c.keyVaultClient != nil && c.keyVaultClient != c.internalClient && c.keyVaultClient != c {
 		if err := c.keyVaultClient.Connect(ctx); err != nil {
 			return err
 		}
 	}
 
-	if c.metadataClient != nil && c.metadataClient != c.internalClient {
+	if c.metadataClient != nil && c.metadataClient != c.internalClient && c.metadataClient != c {
 		if err := c.metadataClient.Connect(ctx); err != nil {
 			return err
 		}
@@ -220,12 +220,12 @@ func (c *Client) Disconnect(ctx context.Context) error {
 		}
 	}
 
-	if c.keyVaultClient != nil && c.keyVaultClient != c.internalClient {
+	if c.keyVaultClient != nil && c.keyVaultClient != c.internalClient && c.keyVaultClient != c {
 		if err := c.keyVaultClient.Disconnect(ctx); err != nil {
 			return err
 		}
 	}
-	if c.metadataClient != nil && c.metadataClient != c.internalClient {
+	if c.metadataClient != nil && c.metadataClient != c.internalClient && c.metadataClient != c {
 		if err := c.metadataClient.Disconnect(ctx); err != nil {
 			return err
 		}
@@ -667,6 +667,8 @@ func (c *Client) configureKeyVault(clientOpts *options.ClientOptions, opts *opti
 		if c.keyVaultClient, err = NewClient(opts.KeyVaultClientOptions); err != nil {
 			return err
 		}
+	} else if clientOpts.MaxPoolSize != nil && *clientOpts.MaxPoolSize == 0 {
+		c.keyVaultClient = c
 	} else {
 		if c.keyVaultClient, err = c.getOrCreateInternalClient(clientOpts); err != nil {
 			return err
@@ -686,10 +688,8 @@ func (c *Client) configureMetadata(clientOpts *options.ClientOptions, opts *opti
 		// no need for a metadata client.
 		return nil
 	}
-	if opts.MetadataClientOptions != nil {
-		if c.metadataClient, err = NewClient(opts.MetadataClientOptions); err != nil {
-			return err
-		}
+	if clientOpts.MaxPoolSize != nil && *clientOpts.MaxPoolSize == 0 {
+		c.metadataClient = c
 	} else {
 		if c.metadataClient, err = c.getOrCreateInternalClient(clientOpts); err != nil {
 			return err

@@ -49,8 +49,6 @@ func toJson1768(v interface{}) string {
 
 type DeadlockTest struct {
 	clientTest           *mongo.Client
-	clientMetadataOpts   *options.ClientOptions
-	clientMetadataEvents []bson.Raw
 	clientKeyVaultOpts   *options.ClientOptions
 	clientKeyVaultEvents []bson.Raw
 	clientEncryption     *mongo.ClientEncryption
@@ -96,9 +94,6 @@ func doTestSetup() *DeadlockTest {
 	if d.clientTest, err = mongo.Connect(ctx, clientTestOpts); err != nil {
 		log.Fatal(err)
 	}
-
-	d.clientMetadataOpts = options.Client().ApplyURI(uri).SetMaxPoolSize(1)
-	d.clientMetadataOpts.SetMonitor(makeCaptureMonitor("clientMetadata", &d.clientMetadataEvents, &d.mutex))
 
 	// Go driver takes client options, not a client, to configure the key vault client.
 	d.clientKeyVaultOpts = options.Client().ApplyURI(uri).SetMaxPoolSize(1)
@@ -165,21 +160,20 @@ func doTestSetup() *DeadlockTest {
 func TestSpec1768(t *testing.T) {
 	testcases := []struct {
 		description                           string
+		maxPoolSize                           uint64
 		bypassAutoEncryptionSet               bool
 		keyVaultClientSet                     bool
-		metadataClientSet                     bool
 		clientEncryptedCommandStartedExpected int
 		clientKeyVaultCommandStartedExpected  int
-		clientMetadataCommandStartedExpected  int
 	}{
-		{"case 1", false, false, false, 4, 0, 0},
-		{"case 2", false, false, true, 3, 0, 1},
-		{"case 3", false, true, false, 3, 1, 0},
-		{"case 4", false, true, true, 2, 1, 1},
-		{"case 5", true, false, false, 3, 0, 0},
-		{"case 6", true, false, true, 3, 0, 0},
-		{"case 7", true, true, false, 2, 1, 0},
-		{"case 8", true, true, true, 2, 1, 0},
+		{"case 1", 1, false, false, 4, 0},
+		{"case 2", 1, false, true, 3, 1},
+		{"case 3", 1, true, false, 3, 0},
+		{"case 4", 1, true, true, 2, 1},
+		{"case 5", 0, false, false, 5, 0},
+		{"case 6", 0, false, true, 3, 1},
+		{"case 7", 0, true, false, 3, 0},
+		{"case 8", 0, true, true, 2, 1},
 	}
 
 	for _, tc := range testcases {
@@ -195,15 +189,11 @@ func TestSpec1768(t *testing.T) {
 				aeOpts.SetKeyVaultClientOptions(d.clientKeyVaultOpts)
 			}
 
-			if tc.metadataClientSet {
-				aeOpts.SetMetadataClientOptions(d.clientMetadataOpts)
-			}
-
 			aeOpts.SetBypassAutoEncryption(tc.bypassAutoEncryptionSet)
 
 			ceOpts := options.Client().ApplyURI(uri)
 			ceOpts.SetMonitor(makeCaptureMonitor("clientEncrypted", &clientEncryptedEvents, &d.mutex))
-			ceOpts.SetMaxPoolSize(1)
+			ceOpts.SetMaxPoolSize(tc.maxPoolSize)
 			ceOpts.SetAutoEncryptionOptions(aeOpts)
 
 			clientEncrypted, err := mongo.Connect(ctx, ceOpts)
@@ -243,10 +233,6 @@ func TestSpec1768(t *testing.T) {
 
 			if len(d.clientKeyVaultEvents) != tc.clientKeyVaultCommandStartedExpected {
 				log.Fatalf("expected %v events in clientKeyVaultEvents, got %v", tc.clientKeyVaultCommandStartedExpected, len(d.clientKeyVaultEvents))
-			}
-
-			if len(d.clientMetadataEvents) != tc.clientMetadataCommandStartedExpected {
-				log.Fatalf("expected %v events in clientMetadataEvents, got %v", tc.clientMetadataCommandStartedExpected, len(d.clientMetadataEvents))
 			}
 
 			var wg sync.WaitGroup
