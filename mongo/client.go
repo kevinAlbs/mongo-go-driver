@@ -165,18 +165,21 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 
 	if c.internalClient != nil {
+		fmt.Println("connecting internalClient")
 		if err := c.internalClient.Connect(ctx); err != nil {
 			return err
 		}
 	}
 
 	if c.keyVaultClient != nil && c.keyVaultClient != c.internalClient && c.keyVaultClient != c {
+		fmt.Println("connecting keyVaultClient")
 		if err := c.keyVaultClient.Connect(ctx); err != nil {
 			return err
 		}
 	}
 
 	if c.metadataClient != nil && c.metadataClient != c.internalClient && c.metadataClient != c {
+		fmt.Println("connecting metadataClient")
 		if err := c.metadataClient.Connect(ctx); err != nil {
 			return err
 		}
@@ -657,7 +660,9 @@ func (c *Client) getOrCreateInternalClient(clientOpts *options.ClientOptions) (*
 
 	internalClientOpts := options.MergeClientOptions(clientOpts)
 	internalClientOpts.AutoEncryptionOptions = nil
-	return NewClient(internalClientOpts)
+	var err error
+	c.internalClient, err = NewClient(internalClientOpts)
+	return c.internalClient, err
 }
 
 func (c *Client) configureKeyVault(clientOpts *options.ClientOptions, opts *options.AutoEncryptionOptions) error {
