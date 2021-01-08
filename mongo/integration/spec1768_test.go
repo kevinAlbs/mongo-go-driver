@@ -92,7 +92,7 @@ func doTestSetup() *DeadlockTest {
 	ctx := context.Background()
 	var err error
 
-	clientTestOpts := options.Client().ApplyURI(uri).SetMaxPoolSize(1)
+	clientTestOpts := options.Client().ApplyURI(uri)
 	if d.clientTest, err = mongo.Connect(ctx, clientTestOpts); err != nil {
 		log.Fatal(err)
 	}
