@@ -201,12 +201,12 @@ func TestSpec1768(t *testing.T) {
 		},
 		{
 			"case 3", 1, true, false, 2,
-			[]startedEvent{{"insert", "db"}, {"find", "db"}, {"find", "keyvault"}},
+			[]startedEvent{{"find", "db"}, {"find", "keyvault"}},
 			nil,
 		},
 		{
 			"case 4", 1, true, true, 1,
-			[]startedEvent{{"insert", "db"}, {"find", "db"}},
+			[]startedEvent{{"find", "db"}},
 			[]startedEvent{{"find", "keyvault"}},
 		},
 		{
@@ -221,12 +221,12 @@ func TestSpec1768(t *testing.T) {
 		},
 		{
 			"case 7", 0, true, false, 1,
-			[]startedEvent{{"insert", "db"}, {"find", "db"}, {"find", "keyvault"}},
+			[]startedEvent{{"find", "db"}, {"find", "keyvault"}},
 			nil,
 		},
 		{
 			"case 8", 0, true, true, 1,
-			[]startedEvent{{"insert", "db"}, {"find", "db"}},
+			[]startedEvent{{"find", "db"}},
 			[]startedEvent{{"find", "keyvault"}},
 		},
 	}
@@ -265,7 +265,8 @@ func TestSpec1768(t *testing.T) {
 			if !tc.bypassAutoEncryptionSet {
 				_, err = coll.InsertOne(ctx, bson.M{"_id": 0, "encrypted": "string0"})
 			} else {
-				_, err = coll.InsertOne(ctx, bson.M{"_id": 0, "encrypted": d.ciphertext})
+				unencryptedColl := d.clientTest.Database("db").Collection("coll")
+				_, err = unencryptedColl.InsertOne(ctx, bson.M{"_id": 0, "encrypted": d.ciphertext})
 			}
 			if err != nil {
 				log.Fatal(err)
