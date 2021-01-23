@@ -8,14 +8,10 @@ below.
 ## Bug Fixes and New Features
 
 Before starting to write code, look for existing [tickets](https://jira.mongodb.org/browse/GODRIVER) or
-[create one](https://jira.mongodb.org/secure/CreateIssue!default.jspa) for your bug, issue, or feature request. This helps the community
+[create one](https://jira.mongodb.org/secure/CreateIssue!default.jspa) for your bug or feature request. This helps the community
 avoid working on something that might not be of interest or which has already been addressed.
 
 ## Pull Requests & Patches
-
-The Go Driver team is experimenting with GerritHub for contributions. GerritHub uses GitHub for authentication and uses a patch based
-workflow. Since GerritHub supports importing of Pull Requests we will also accept Pull Requests, but Code Review will be done in
-GerritHub.
 
 Patches should generally be made against the master (default) branch and include relevant tests, if applicable.
 
@@ -32,5 +28,6 @@ e.g. GODRIVER-123. For the patch commit message itself, please follow the [How t
 
 ## Talk To Us
 
-If you want to work on the driver, write documentation, or have questions/complaints, please reach out to use either via [MongoDB Community Forums](https://community.mongodb.com/tags/c/drivers-odms-connectors/7/go-driver) or by creating a Question
-issue at (https://jira.mongodb.org/secure/CreateIssue!default.jspa).
+If you have questions or complaints, please reach out via the [MongoDB Community Forums](https://community.mongodb.com/tags/c/drivers-odms-connectors/7/golang).
+If you would like to make a contribution or have a feature request please file an "Improvement" or "New Feature" [ticket](https://jira.mongodb.org/secure/CreateIssue!default.jspa).
+If you have found a bug, please file a "Bug" [ticket](https://jira.mongodb.org/secure/CreateIssue!default.jspa).
