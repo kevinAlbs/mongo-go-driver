@@ -8,12 +8,17 @@ package mtest
 
 import (
 	"fmt"
+	"os"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/topology"
 )
+
+func AtlasProxy() bool {
+	return os.Getenv("ATLAS_PROXY_INTEGRATION_TEST") == "true"
+}
 
 // AuthEnabled returns whether or not the cluster requires auth.
 func AuthEnabled() bool {

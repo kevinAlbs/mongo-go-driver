@@ -203,6 +203,7 @@ func runSpecTestFile(t *testing.T, specDir, fileName string) {
 		mtOpts.AtlasDataLake(true)
 	}
 	mt := mtest.New(t, mtOpts)
+	mt.Debug = true
 	defer mt.Close()
 
 	for _, test := range testFile.Tests {

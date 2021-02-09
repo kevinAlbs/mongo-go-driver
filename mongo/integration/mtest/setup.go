@@ -52,6 +52,7 @@ var testContext struct {
 	dataLake          bool
 	requireAPIVersion bool
 	serverParameters  bson.Raw
+	atlasProxy        bool
 }
 
 func setupClient(cs connstring.ConnString, opts *options.ClientOptions) (*mongo.Client, error) {
@@ -73,6 +74,7 @@ func Setup() error {
 	}
 	testContext.dataLake = os.Getenv("ATLAS_DATA_LAKE_INTEGRATION_TEST") == "true"
 	testContext.requireAPIVersion = os.Getenv("REQUIRE_API_VERSION") == "true"
+	testContext.atlasProxy = os.Getenv("ATLAS_PROXY_INTEGRATION_TEST") == "true"
 
 	connectionOpts := []topology.ConnectionOption{
 		topology.WithOCSPCache(func(ocsp.Cache) ocsp.Cache {
@@ -193,10 +195,14 @@ func Setup() error {
 		}
 	}
 
-	db := testContext.client.Database("admin")
-	testContext.serverParameters, err = db.RunCommand(Background, bson.D{{"getParameter", "*"}}).DecodeBytes()
-	if err != nil {
-		return fmt.Errorf("error getting serverParameters: %v", err)
+	testContext.serverParameters, err = bson.Marshal(bson.D{})
+
+	if !testContext.atlasProxy {
+		db := testContext.client.Database("admin")
+		testContext.serverParameters, err = db.RunCommand(Background, bson.D{{"getParameter", "*"}}).DecodeBytes()
+		if err != nil {
+			return fmt.Errorf("error getting serverParameters: %v", err)
+		}
 	}
 	return nil
 }

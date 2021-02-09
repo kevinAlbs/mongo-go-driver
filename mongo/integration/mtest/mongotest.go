@@ -9,6 +9,7 @@ package mtest
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"testing"
@@ -121,6 +122,8 @@ type T struct {
 	Client *mongo.Client
 	DB     *mongo.Database
 	Coll   *mongo.Collection
+
+	Debug bool
 }
 
 func newT(wrapped *testing.T, opts ...*Options) *T {
@@ -376,6 +379,7 @@ func (t *T) ResetClient(opts *options.ClientOptions) {
 	}
 
 	_ = t.Client.Disconnect(Background)
+	t.Debug = true
 	t.createTestClient()
 	t.DB = t.Client.Database(t.dbName)
 	t.Coll = t.DB.Collection(t.collName, t.collOpts)
@@ -541,6 +545,14 @@ func sanitizeCollectionName(db string, coll string) string {
 	return coll
 }
 
+func toJson(v interface{}) string {
+	bytes, err := bson.MarshalExtJSON(v, true, false)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return string(bytes)
+}
+
 func (t *T) createTestClient() {
 	clientOpts := t.clientOpts
 	if clientOpts == nil {
@@ -555,16 +567,25 @@ func (t *T) createTestClient() {
 	clientOpts.SetMonitor(&event.CommandMonitor{
 		Started: func(_ context.Context, cse *event.CommandStartedEvent) {
 			t.monitorLock.Lock()
+			if t.Debug {
+				fmt.Println("=> CommandStarted:", cse.CommandName, toJson(cse.Command))
+			}
 			defer t.monitorLock.Unlock()
 			t.started = append(t.started, cse)
 		},
 		Succeeded: func(_ context.Context, cse *event.CommandSucceededEvent) {
 			t.monitorLock.Lock()
+			if t.Debug {
+				fmt.Println("<= CommandSucceeded:", cse.CommandName, toJson(cse.Reply))
+			}
 			defer t.monitorLock.Unlock()
 			t.succeeded = append(t.succeeded, cse)
 		},
 		Failed: func(_ context.Context, cfe *event.CommandFailedEvent) {
 			t.monitorLock.Lock()
+			if t.Debug {
+				fmt.Println("<= CommandFailed:", cfe.CommandName, cfe.Failure, toJson(cfe.Reply))
+			}
 			defer t.monitorLock.Unlock()
 			t.failed = append(t.failed, cfe)
 		},
@@ -692,6 +713,10 @@ func verifyRunOnBlockConstraint(rob RunOnBlock) error {
 	}
 	if err := verifyTopologyConstraints(rob.Topology); err != nil {
 		return err
+	}
+
+	if rob.ExcludeAtlasProxy && testContext.atlasProxy {
+		return fmt.Errorf("test must skip when run against Atlas Proxy")
 	}
 
 	return verifyServerParametersConstraints(rob.ServerParameters)

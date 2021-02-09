@@ -1434,6 +1434,13 @@ func (op Operation) publishFinishedEvent(ctx context.Context, info finishedInfor
 		Failure:              info.cmdErr.Error(),
 		CommandFinishedEvent: finished,
 	}
+
+	if !info.redacted {
+		res := bson.Raw{}
+		res = make([]byte, len(info.response))
+		copy(res, info.response)
+		failedEvent.Reply = res
+	}
 	op.CommandMonitor.Failed(ctx, failedEvent)
 }
 

@@ -107,6 +107,11 @@ func killSessions(mt *mtest.T) {
 	if err == nil {
 		return
 	}
+
+	// Ignore errors from killAllSessions from Atlas Proxy.
+	if mtest.AtlasProxy() {
+		return
+	}
 	if !isExpectedKillAllSessionsError(err) {
 		mt.Fatalf("killAllSessions error: %v", err)
 	}

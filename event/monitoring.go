@@ -42,6 +42,7 @@ type CommandSucceededEvent struct {
 type CommandFailedEvent struct {
 	CommandFinishedEvent
 	Failure string
+	Reply   bson.Raw
 }
 
 // CommandMonitor represents a monitor that is triggered for different events.

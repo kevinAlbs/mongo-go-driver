@@ -28,6 +28,11 @@ func TerminateOpenSessions(ctx context.Context) error {
 		return nil
 	}
 
+	/* AtlasProxy does not support killAllSessions. */
+	if mtest.AtlasProxy() {
+		return nil
+	}
+
 	commandFn := func(ctx context.Context, client *mongo.Client) error {
 		cmd := bson.D{
 			{"killAllSessions", bson.A{}},

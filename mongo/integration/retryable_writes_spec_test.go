@@ -69,6 +69,7 @@ func runRetryableWritesTest(mt *mtest.T, test retryableWritesTest, testFile retr
 	}
 
 	mt.RunOpts(test.Description, opts, func(mt *mtest.T) {
+		mt.Debug = true
 		// setup - insert test data and set fail point
 		insertDocuments(mt, mt.Coll, testFile.Data)
 		if test.FailPoint != nil {
