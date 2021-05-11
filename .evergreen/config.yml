@@ -189,11 +189,6 @@ functions:
         script: |
           ${PREPARE_SHELL}
 
-          cp ${PROJECT_DIRECTORY}/data/certificates/server.pem ${DRIVERS_TOOLS}/.evergreen/x509gen/server.pem
-          cp ${PROJECT_DIRECTORY}/data/certificates/ca.pem ${DRIVERS_TOOLS}/.evergreen/x509gen/ca.pem
-          cp ${PROJECT_DIRECTORY}/data/certificates/client.pem ${DRIVERS_TOOLS}/.evergreen/x509gen/client.pem
-          cp ${PROJECT_DIRECTORY}/data/certificates/client.pem ${MONGO_ORCHESTRATION_HOME}/lib/client.pem
-
           MONGODB_VERSION=${VERSION} \
           TOPOLOGY=${TOPOLOGY} \
           AUTH=${AUTH} \
@@ -210,7 +205,6 @@ functions:
       params:
         script: |
           ${PREPARE_SHELL}
-          cp ${PROJECT_DIRECTORY}/data/certificates/client.pem ${MONGO_ORCHESTRATION_HOME}/lib/client.pem
 
           MONGODB_VERSION=${VERSION} \
           TOPOLOGY=${TOPOLOGY} \
@@ -256,6 +250,8 @@ functions:
             cat $i | tr -d '\r' > $i.new
             mv $i.new $i
           done
+          # Copy client certificate because symlinks do not work on Windows.
+          cp ${DRIVERS_TOOLS}/.evergreen/x509gen/client.pem ${MONGO_ORCHESTRATION_HOME}/lib/client.pem
 
   make-files-executable:
     - command: shell.exec
@@ -284,10 +280,17 @@ functions:
           ${PREPARE_SHELL}
 
           if [ ${SSL} = "ssl" ]; then
-              export MONGO_GO_DRIVER_CA_FILE="$PROJECT_DIRECTORY/data/certificates/ca.pem"
+              export MONGO_GO_DRIVER_CA_FILE="$DRIVERS_TOOLS/.evergreen/x509gen/ca.pem"
+              export MONGO_GO_DRIVER_KEY_FILE="$DRIVERS_TOOLS/.evergreen/x509gen/client.pem"
+              export MONGO_GO_DRIVER_PKCS8_ENCRYPTED_KEY_FILE="$DRIVERS_TOOLS/.evergreen/x509gen/client-pkcs8-encrypted.pem"
+              export MONGO_GO_DRIVER_PKCS8_UNENCRYPTED_KEY_FILE="$DRIVERS_TOOLS/.evergreen/x509gen/client-pkcs8-unencrypted.pem"
+
 
               if [ "Windows_NT" = "$OS" ]; then # Magic variable in cygwin
                   export MONGO_GO_DRIVER_CA_FILE=$(cygpath -m $MONGO_GO_DRIVER_CA_FILE)
+                  export MONGO_GO_DRIVER_KEY_FILE=$(cygpath -m $MONGO_GO_DRIVER_KEY_FILE)
+                  export MONGO_GO_DRIVER_PKCS8_ENCRYPTED_KEY_FILE=$(cygpath -m $MONGO_GO_DRIVER_PKCS8_ENCRYPTED_KEY_FILE)
+                  export MONGO_GO_DRIVER_PKCS8_UNENCRYPTED_KEY_FILE=$(cygpath -m $MONGO_GO_DRIVER_PKCS8_UNENCRYPTED_KEY_FILE)
               fi
           fi
 
@@ -529,9 +532,15 @@ functions:
           ${PREPARE_SHELL}
 
           if [ ${SSL} = "ssl" ]; then
-              export MONGO_GO_DRIVER_CA_FILE="$PROJECT_DIRECTORY/data/certificates/ca.pem"
+              export MONGO_GO_DRIVER_CA_FILE="$DRIVERS_TOOLS/.evergreen/x509gen/ca.pem"
+              export MONGO_GO_DRIVER_KEY_FILE="$DRIVERS_TOOLS/.evergreen/x509gen/client.pem"
+              export MONGO_GO_DRIVER_PKCS8_ENCRYPTED_KEY_FILE="$DRIVERS_TOOLS/.evergreen/x509gen/client-pkcs8-encrypted.pem"
+              export MONGO_GO_DRIVER_PKCS8_UNENCRYPTED_KEY_FILE="$DRIVERS_TOOLS/.evergreen/x509gen/client-pkcs8-unencrypted.pem"
               if [ "Windows_NT" = "$OS" ]; then # Magic variable in cygwin
                   export MONGO_GO_DRIVER_CA_FILE=$(cygpath -m $MONGO_GO_DRIVER_CA_FILE)
+                  export MONGO_GO_DRIVER_KEY_FILE=$(cygpath -m $MONGO_GO_DRIVER_KEY_FILE)
+                  export MONGO_GO_DRIVER_PKCS8_ENCRYPTED_KEY_FILE=$(cygpath -m $MONGO_GO_DRIVER_PKCS8_ENCRYPTED_KEY_FILE)
+                  export MONGO_GO_DRIVER_PKCS8_UNENCRYPTED_KEY_FILE=$(cygpath -m $MONGO_GO_DRIVER_PKCS8_UNENCRYPTED_KEY_FILE)
               fi
           fi
 
@@ -665,7 +674,7 @@ functions:
     - command: shell.exec
       params:
         script: |
-          DRIVERS_TOOLS=${DRIVERS_TOOLS} bash ${DRIVERS_TOOLS}/.evergreen/run-load-balancer.sh stop
+          DRIVERS_TOOLS=${DRIVERS_TOOLS} MONGODB_URI=${MONGODB_URI} bash ${DRIVERS_TOOLS}/.evergreen/run-load-balancer.sh stop
 
   add-aws-auth-variables-to-file:
     - command: shell.exec
