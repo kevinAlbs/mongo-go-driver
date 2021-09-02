@@ -293,6 +293,10 @@ func (p *parser) parse(original string) error {
 	p.Database = extractedDatabase.db
 
 	connectionArgsFromQueryString, err := extractQueryArgsFromURI(uri)
+	if err != nil {
+		return err
+	}
+
 	connectionArgPairs := append(connectionArgsFromTXT, connectionArgsFromQueryString...)
 
 	for _, pair := range connectionArgPairs {
