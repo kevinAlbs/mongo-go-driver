@@ -718,6 +718,9 @@ func (c *ClientOptions) SetSocketTimeout(d time.Duration) *ClientOptions {
 //
 // The default is nil, meaning no TLS will be enabled.
 func (c *ClientOptions) SetTLSConfig(cfg *tls.Config) *ClientOptions {
+	if cfg.MinVersion == 0 {
+		cfg.MinVersion = tls.VersionTLS12
+	}
 	c.TLSConfig = cfg
 	return c
 }

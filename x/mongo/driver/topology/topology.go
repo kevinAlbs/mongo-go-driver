@@ -648,11 +648,7 @@ func (t *Topology) apply(ctx context.Context, desc description.Server) descripti
 	}
 
 	var current description.Topology
-	var err error
-	current, desc, err = t.fsm.apply(desc)
-	if err != nil {
-		return desc
-	}
+	current, desc = t.fsm.apply(desc)
 
 	if !oldDesc.Equal(desc) {
 		t.publishServerDescriptionChangedEvent(oldDesc, desc)
