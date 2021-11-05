@@ -10,6 +10,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -22,6 +23,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/integration/mtest"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
+	"go.mongodb.org/mongo-driver/x/mongo/driver"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/cryptx"
+	mcopts "go.mongodb.org/mongo-driver/x/mongo/driver/mongocrypt/options"
 )
 
 // createDataKeyAndEncrypt creates a data key with the alternate name @keyName.
@@ -233,5 +237,87 @@ func TestClientSideEncryptionWithExplicitSessions(t *testing.T) {
 		lsid = getLsid(mt, event.Command)
 		assert.Nil(mt, err, "lsid not found on %v", event.Command)
 		assert.NotEqual(mt, lsid, session.ID(), "expected different lsid, but got %v", lsid)
+	})
+}
+
+type customCrypt struct{}
+
+// Encrypt encrypts the given command.
+func (c *customCrypt) Encrypt(ctx context.Context, db string, cmd bsoncore.Document) (bsoncore.Document, error) {
+	fmt.Println("TODO: add implementation")
+	return cmd, nil
+}
+
+// Decrypt decrypts the given command response.
+func (c *customCrypt) Decrypt(ctx context.Context, cmdResponse bsoncore.Document) (bsoncore.Document, error) {
+	fmt.Println("TODO: add implementation")
+	return cmdResponse, nil
+}
+
+// CreateDataKey creates a data key using the given KMS provider and options.
+func (c *customCrypt) CreateDataKey(ctx context.Context, kmsProvider string, opts *mcopts.DataKeyOptions) (bsoncore.Document, error) {
+	fmt.Println("TODO: add implementation")
+	return nil, nil
+}
+
+// EncryptExplicit encrypts the given value with the given options.
+func (c *customCrypt) EncryptExplicit(ctx context.Context, val bsoncore.Value, opts *mcopts.ExplicitEncryptionOptions) (byte, []byte, error) {
+	fmt.Println("TODO: add implementation")
+	return 0, nil, nil
+}
+
+// DecryptExplicit decrypts the given encrypted value.
+func (c *customCrypt) DecryptExplicit(ctx context.Context, subtype byte, data []byte) (bsoncore.Value, error) {
+	fmt.Println("TODO: add implementation")
+	return bsoncore.Value{}, nil
+}
+
+// Close cleans up any resources associated with the Crypt instance.
+func (c *customCrypt) Close() {
+	fmt.Println("TODO: add implementation")
+}
+
+// BypassAutoEncryption returns true if auto-encryption should be bypassed.
+func (c *customCrypt) BypassAutoEncryption() bool {
+	fmt.Println("TODO: add implementation")
+	return false
+}
+
+var _ driver.Crypt = (*customCrypt)(nil)
+
+// WIP test of custom driver.Crypt interface.
+//
+// To run this test, ensure libmongocrypt is installed:
+//   brew install mongodb/brew/libmongocrypt
+//
+// Then, run the following from mongo-go-driver:
+//   go test -tags cse -v ./mongo/integration -run TestClientSideEncryptionCustomCrypt
+func TestClientSideEncryptionCustomCrypt(t *testing.T) {
+	mt := mtest.New(t, mtest.NewOptions().MinServerVersion("4.2").Enterprise(true).CreateClient(false))
+	defer mt.Close()
+
+	kmsProvidersMap := map[string]map[string]interface{}{
+		"local": {"key": localMasterKey},
+	}
+
+	mt.Run("auto encryption and decryption", func(mt *mtest.T) {
+		aeOpts := options.AutoEncryption().
+			SetKmsProviders(kmsProvidersMap).
+			SetKeyVaultNamespace("keyvault.datakeys")
+
+		clientOpts := options.Client().
+			ApplyURI(mtest.ClusterURI()).
+			SetAutoEncryptionOptions(aeOpts)
+
+		cryptx.SetCrypt(clientOpts, &customCrypt{})
+
+		testutil.AddTestServerAPIVersion(clientOpts)
+
+		client, err := mongo.Connect(mtest.Background, clientOpts)
+		assert.Nil(mt, err, "Connect error: %v", err)
+		defer client.Disconnect(mtest.Background)
+
+		_, err = client.Database("db").Collection("coll").InsertOne(context.TODO(), bson.D{{"x", 1}})
+		assert.Nil(mt, err, "InsertOne error")
 	})
 }
