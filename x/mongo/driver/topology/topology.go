@@ -547,6 +547,11 @@ func (t *Topology) pollSRVRecords() {
 			t.pollHeartbeatTime.Store(false)
 		}
 
+		fmt.Println("Before shuffle")
+		for _, host := range parsedHosts {
+			fmt.Println(" - ", host)
+		}
+
 		// If t.cfg.srvMaxHosts is non-zero and is less than the number of hosts, randomly
 		// select srvMaxHosts hosts from parsedHosts using the modern Fisher-Yates
 		// algorithm.
@@ -558,6 +563,11 @@ func (t *Topology) pollSRVRecords() {
 				parsedHosts[j], parsedHosts[i] = parsedHosts[i], parsedHosts[j]
 			}
 			parsedHosts = parsedHosts[:t.cfg.srvMaxHosts]
+		}
+
+		fmt.Println("After shuffle")
+		for _, host := range parsedHosts {
+			fmt.Println(" - ", host)
 		}
 
 		cont := t.processSRVResults(parsedHosts)
