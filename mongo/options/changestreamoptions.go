@@ -142,6 +142,9 @@ func MergeChangeStreamOptions(opts ...*ChangeStreamOptions) *ChangeStreamOptions
 		if cso.StartAfter != nil {
 			csOpts.StartAfter = cso.StartAfter
 		}
+		if cso.CursorBatchSize != nil {
+			csOpts.CursorBatchSize = cso.CursorBatchSize
+		}
 	}
 
 	return csOpts
