@@ -9,6 +9,8 @@ package options
 import (
 	"crypto/tls"
 	"fmt"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // ClientEncryptionOptions represents all possible options used to configure a ClientEncryption instance.
@@ -135,4 +137,21 @@ func MergeClientEncryptionOptions(opts ...*ClientEncryptionOptions) *ClientEncry
 	}
 
 	return ceo
+}
+
+type EncryptedQueryOptions struct {
+	QueryType  string
+	Contention *int64
+}
+type EncryptedFieldOptions struct {
+	KeyID    *primitive.Binary
+	Path     string
+	BSONType string
+	Queries  []EncryptedQueryOptions
+}
+type EncryptedCollectionOptions struct {
+	ESCCollection  string
+	ECCCollection  string
+	ECOCCollection string
+	Fields         []EncryptedFieldOptions
 }
