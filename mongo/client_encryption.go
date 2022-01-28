@@ -157,3 +157,20 @@ func (ce *ClientEncryption) AddKeysToEncryptedCollectionOptions(ctx context.Cont
 	}
 	return nil
 }
+
+// CreateCollection creates a collection using @db with name @name.
+// For any nil CreateEncryptedCollectionOptions.Fields.KeyID, a new key is created with @kmsProvider and @dkopts.
+func (ce *ClientEncryption) CreateCollection(ctx context.Context, db *Database, name string, kmsProvider string, dkopts *options.DataKeyOptions, opts ...*options.CreateCollectionOptions) error {
+	cco := options.MergeCreateCollectionOptions(opts...)
+	for i := range cco.EncryptedCollectionOptions.Fields {
+		efo := &cco.EncryptedCollectionOptions.Fields[i]
+		if efo.KeyID == nil {
+			keyid, err := ce.CreateDataKey(ctx, kmsProvider, dkopts)
+			if err != nil {
+				return err
+			}
+			efo.KeyID = &keyid
+		}
+	}
+	return db.CreateCollection(ctx, name, cco)
+}

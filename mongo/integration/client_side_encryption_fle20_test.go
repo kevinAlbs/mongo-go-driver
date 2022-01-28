@@ -95,4 +95,44 @@ func TestFLE20CreateCollection(t *testing.T) {
 		err = ce.AddKeysToEncryptedCollectionOptions(context.TODO(), &eco, "local", nil)
 		fmt.Printf("After: %v\n", eco)
 	})
+
+	mt.Run("Q: Can ClientEncryption.CreateCollection wrap Database.CreateCollection? A: Yes", func(mt *mtest.T) {
+		// Create a KeyVault client.
+		kvClientOptions := options.Client().ApplyURI(mtest.ClusterURI())
+		kvClient, err := mongo.Connect(context.TODO(), kvClientOptions)
+		defer kvClient.Disconnect(context.TODO())
+		assert.Nil(mt, err, "error in kvClient Connect: %v", err)
+
+		// Create a ClientEncryption object.
+		ceOpts := options.ClientEncryption().SetKeyVaultNamespace("keyvault.datakeys").SetKmsProviders(kmsProvidersMap)
+		ce, err := mongo.NewClientEncryption(kvClient, ceOpts)
+		defer ce.Close(context.TODO())
+		assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
+
+		// Create a data client.
+		client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mtest.ClusterURI()))
+		assert.Nil(t, err, "error in data client Connect: %v", err)
+		defer client.Disconnect(context.TODO())
+
+		eco := options.EncryptedCollectionOptions{
+			ESCCollection:  "foo_esc",
+			ECCCollection:  "foo_ecc",
+			ECOCCollection: "foo_ecoc",
+			Fields: []options.EncryptedFieldOptions{
+				{
+					Path:     "ssn",
+					BSONType: "string",
+					Queries: []options.EncryptedQueryOptions{
+						{QueryType: "equality"},
+					},
+				},
+			},
+		}
+
+		cco := options.CreateCollection().SetEncryptedCollectionOptions(&eco)
+		db := client.Database("db")
+		db.Collection("coll").Drop(context.TODO())
+		err = ce.CreateCollection(context.TODO(), db, "coll", "local", nil, cco)
+		fmt.Printf("error in CreateCollection: %v\n", eco)
+	})
 }

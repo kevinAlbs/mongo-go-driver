@@ -125,6 +125,9 @@ type CreateCollectionOptions struct {
 	//
 	// This option is only valid for MongoDB versions >= 5.0
 	TimeSeriesOptions *TimeSeriesOptions
+
+	// Options for EncryptedCollections.
+	EncryptedCollectionOptions *EncryptedCollectionOptions
 }
 
 // CreateCollection creates a new CreateCollectionOptions instance.
@@ -198,6 +201,11 @@ func (c *CreateCollectionOptions) SetTimeSeriesOptions(timeSeriesOpts *TimeSerie
 	return c
 }
 
+func (c *CreateCollectionOptions) SetEncryptedCollectionOptions(eco *EncryptedCollectionOptions) *CreateCollectionOptions {
+	c.EncryptedCollectionOptions = eco
+	return c
+}
+
 // MergeCreateCollectionOptions combines the given CreateCollectionOptions instances into a single
 // CreateCollectionOptions in a last-one-wins fashion.
 func MergeCreateCollectionOptions(opts ...*CreateCollectionOptions) *CreateCollectionOptions {
@@ -240,6 +248,9 @@ func MergeCreateCollectionOptions(opts ...*CreateCollectionOptions) *CreateColle
 		}
 		if opt.TimeSeriesOptions != nil {
 			cc.TimeSeriesOptions = opt.TimeSeriesOptions
+		}
+		if opt.EncryptedCollectionOptions != nil {
+			cc.EncryptedCollectionOptions = opt.EncryptedCollectionOptions
 		}
 	}
 
