@@ -25,7 +25,7 @@ func TestFLE20CreateCollection(t *testing.T) {
 	defer mt.Close()
 
 	mt.Run("Is it possible for CreateCollection to accept a ClientEncryption option?", func(mt *mtest.T) {
-		// Create a KeyVault client.
+		// Create key vault client.
 		kvClientOptions := options.Client().ApplyURI(mtest.ClusterURI())
 		kvClient, err := mongo.Connect(context.TODO(), kvClientOptions)
 		defer kvClient.Disconnect(context.TODO())
@@ -37,7 +37,7 @@ func TestFLE20CreateCollection(t *testing.T) {
 		defer ce.Close(context.TODO())
 		assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
 
-		// Create an unencrypted Client.
+		// Create data Client.
 		clientOptions := options.Client().ApplyURI(mtest.ClusterURI())
 		client, err := mongo.Connect(context.TODO(), clientOptions)
 		defer client.Disconnect(context.TODO())
