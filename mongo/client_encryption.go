@@ -139,3 +139,21 @@ func splitNamespace(ns string) (string, string) {
 
 	return ns[:firstDot], ns[firstDot+1:]
 }
+
+/* AddKeysToEncryptedCollectionOptions creates Data Encryption Keys for any missing keys in the passed @opts.
+ * For any nil CreateEncryptedCollectionOptions.Fields.KeyID, a new key is created with @kmsProvider and @dkopts.
+ */
+func (ce *ClientEncryption) AddKeysToEncryptedCollectionOptions(ctx context.Context, opts *options.EncryptedCollectionOptions, kmsProvider string, dkopts *options.DataKeyOptions) error {
+	/* TODO: If any KeyID is nil in opts.Fields, create a key for the user. */
+	for i := range opts.Fields {
+		eco := &opts.Fields[i]
+		if eco.KeyID == nil {
+			keyid, err := ce.CreateDataKey(ctx, kmsProvider, dkopts)
+			if err != nil {
+				return err
+			}
+			eco.KeyID = &keyid
+		}
+	}
+	return nil
+}

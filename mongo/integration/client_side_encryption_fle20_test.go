@@ -11,6 +11,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/internal/testutil/assert"
@@ -24,6 +25,10 @@ func TestFLE20CreateCollection(t *testing.T) {
 	mt := mtest.New(t, mtest.NewOptions().MinServerVersion("5.0").Enterprise(true).CreateClient(false))
 	defer mt.Close()
 
+	kmsProvidersMap := map[string]map[string]interface{}{
+		"local": {"key": localMasterKey},
+	}
+
 	mt.Run("Is it possible for CreateCollection to accept a ClientEncryption option?", func(mt *mtest.T) {
 		// Create key vault client.
 		kvClientOptions := options.Client().ApplyURI(mtest.ClusterURI())
@@ -32,7 +37,7 @@ func TestFLE20CreateCollection(t *testing.T) {
 		assert.Nil(mt, err, "error in kvClient Connect: %v", err)
 
 		// Create a ClientEncryption object.
-		ceOpts := options.ClientEncryption().SetKeyVaultNamespace("keyvault.datakeys")
+		ceOpts := options.ClientEncryption().SetKeyVaultNamespace("keyvault.datakeys").SetKmsProviders(kmsProvidersMap)
 		ce, err := mongo.NewClientEncryption(kvClient, ceOpts)
 		defer ce.Close(context.TODO())
 		assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
@@ -56,5 +61,38 @@ func TestFLE20CreateCollection(t *testing.T) {
 					imports go.mongodb.org/mongo-driver/mongo/options: import cycle not allowed
 			FAIL    go.mongodb.org/mongo-driver/mongo/integration [setup failed]
 		*/
+	})
+
+	mt.Run("Can ClientEncryption generate the encryptedFields options?", func(mt *mtest.T) {
+		// Create a KeyVault client.
+		kvClientOptions := options.Client().ApplyURI(mtest.ClusterURI())
+		kvClient, err := mongo.Connect(context.TODO(), kvClientOptions)
+		defer kvClient.Disconnect(context.TODO())
+		assert.Nil(mt, err, "error in kvClient Connect: %v", err)
+
+		// Create a ClientEncryption object.
+		ceOpts := options.ClientEncryption().SetKeyVaultNamespace("keyvault.datakeys").SetKmsProviders(kmsProvidersMap)
+		ce, err := mongo.NewClientEncryption(kvClient, ceOpts)
+		defer ce.Close(context.TODO())
+		assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
+
+		eco := options.EncryptedCollectionOptions{
+			ESCCollection:  "foo_esc",
+			ECCCollection:  "foo_ecc",
+			ECOCCollection: "foo_ecoc",
+			Fields: []options.EncryptedFieldOptions{
+				{
+					Path:     "ssn",
+					BSONType: "string",
+					Queries: []options.EncryptedQueryOptions{
+						{QueryType: "equality"},
+					},
+				},
+			},
+		}
+
+		fmt.Printf("Before: %v\n", eco)
+		err = ce.AddKeysToEncryptedCollectionOptions(context.TODO(), &eco, "local", nil)
+		fmt.Printf("After: %v\n", eco)
 	})
 }
