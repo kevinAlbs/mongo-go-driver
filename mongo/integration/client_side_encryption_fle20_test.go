@@ -24,25 +24,25 @@ func TestFLE20CreateCollection(t *testing.T) {
 	mt := mtest.New(t, mtest.NewOptions().MinServerVersion("5.0").Enterprise(true).CreateClient(false))
 	defer mt.Close()
 
-	// Create a KeyVault client.
-	kvClientOptions := options.Client().ApplyURI(mtest.ClusterURI())
-	kvClient, err := mongo.Connect(context.TODO(), kvClientOptions)
-	defer kvClient.Disconnect(context.TODO())
-	assert.Nil(mt, err, "error in kvClient Connect: %v", err)
-
-	// Create a ClientEncryption object.
-	ceOpts := options.ClientEncryption().SetKeyVaultNamespace("keyvault.datakeys")
-	ce, err := mongo.NewClientEncryption(kvClient, ceOpts)
-	defer ce.Close(context.TODO())
-	assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
-
-	// Create an unencrypted Client.
-	clientOptions := options.Client().ApplyURI(mtest.ClusterURI())
-	client, err := mongo.Connect(context.TODO(), clientOptions)
-	defer client.Disconnect(context.TODO())
-	assert.Nil(mt, err, "error in Connect: %v", err)
-
 	mt.Run("Is it possible for CreateCollection to accept a ClientEncryption option?", func(mt *mtest.T) {
+		// Create a KeyVault client.
+		kvClientOptions := options.Client().ApplyURI(mtest.ClusterURI())
+		kvClient, err := mongo.Connect(context.TODO(), kvClientOptions)
+		defer kvClient.Disconnect(context.TODO())
+		assert.Nil(mt, err, "error in kvClient Connect: %v", err)
+
+		// Create a ClientEncryption object.
+		ceOpts := options.ClientEncryption().SetKeyVaultNamespace("keyvault.datakeys")
+		ce, err := mongo.NewClientEncryption(kvClient, ceOpts)
+		defer ce.Close(context.TODO())
+		assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
+
+		// Create an unencrypted Client.
+		clientOptions := options.Client().ApplyURI(mtest.ClusterURI())
+		client, err := mongo.Connect(context.TODO(), clientOptions)
+		defer client.Disconnect(context.TODO())
+		assert.Nil(mt, err, "error in Connect: %v", err)
+
 		db := client.Database("db")
 		db.Collection("encrypted").Drop(context.TODO())
 		err = db.CreateCollection(context.TODO(), "encrypted", options.CreateCollection())
