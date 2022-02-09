@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"testing"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/internal/testutil/assert"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/integration/mtest"
@@ -134,5 +135,46 @@ func TestFLE20CreateCollection(t *testing.T) {
 		db.Collection("coll").Drop(context.TODO())
 		err = ce.CreateCollection(context.TODO(), db, "coll", "local", nil, cco)
 		fmt.Printf("error in CreateCollection: %v\n", eco)
+	})
+}
+
+func TestFLE2ExplicitEncryption(t *testing.T) {
+	mt := mtest.New(t, mtest.NewOptions().MinServerVersion("5.0").CreateClient(false))
+	defer mt.Close()
+
+	kmsProvidersMap := map[string]map[string]interface{}{
+		"local": {"key": localMasterKey},
+	}
+
+	mt.Run("Explicit encrypt IndexType=None", func(mt *mtest.T) {
+		// Create key vault client.
+		kvClientOptions := options.Client().ApplyURI(mtest.ClusterURI())
+		kvClient, err := mongo.Connect(context.TODO(), kvClientOptions)
+		defer kvClient.Disconnect(context.TODO())
+		assert.Nil(mt, err, "error in kvClient Connect: %v", err)
+
+		// Create a ClientEncryption object.
+		ceOpts := options.ClientEncryption().SetKeyVaultNamespace("keyvault.datakeys").SetKmsProviders(kmsProvidersMap)
+		ce, err := mongo.NewClientEncryption(kvClient, ceOpts)
+		defer ce.Close(context.TODO())
+		assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
+
+		// Create a data key.
+		keyid, err := ce.CreateDataKey(context.TODO(), "local")
+		assert.Nil(mt, err, "error in CreateDataKey: %v", err)
+
+		// Create EncryptOptions.
+		eOpts := options.Encrypt().SetKeyID(keyid).SetEncryptIndexType(options.EncryptIndexNone)
+		// TODO: once libmongocrypt supports IndexType, remove SetAlgorithm.
+		eOpts.SetAlgorithm("AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic")
+		bsonType, bytes, err := bson.MarshalValue("foo")
+		assert.Nil(mt, err, "error in MarshalValue: %v", err)
+		toEncrypt := bson.RawValue{Type: bsonType, Value: bytes}
+		ciphertext, err := ce.Encrypt(context.TODO(), toEncrypt, eOpts)
+		assert.Nil(mt, err, "error in Encrypt: %v", err)
+		assert.Equal(mt, ciphertext.Subtype, byte(6), "expected ciphertext binary subtype 0x06, got: %v", ciphertext.Subtype)
+		// TODO: once libmongocrypt supports IndexType, expect the first byte to be 0x04.
+		assert.Equal(mt, ciphertext.Data[0], byte(1), "expected ciphertext payload type 0x01, got: %v", ciphertext.Data[0])
+		mt.Logf("'ciphertext' is encoded as: %x\n", ciphertext.Data)
 	})
 }

@@ -10,11 +10,21 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// EncryptIndexType represents the type of FLE 2 index.
+type EncryptIndexType uint8
+
+const (
+	EncryptIndexNone EncryptIndexType = iota
+	EncryptIndexEquality
+)
+
 // EncryptOptions represents options to explicitly encrypt a value.
 type EncryptOptions struct {
-	KeyID      *primitive.Binary
-	KeyAltName *string
-	Algorithm  string
+	KeyID            *primitive.Binary
+	KeyAltName       *string
+	Algorithm        string
+	IndexType        *EncryptIndexType
+	ContentionFactor *int
 }
 
 // Encrypt creates a new EncryptOptions instance.
@@ -41,6 +51,16 @@ func (e *EncryptOptions) SetAlgorithm(algorithm string) *EncryptOptions {
 	return e
 }
 
+func (e *EncryptOptions) SetEncryptIndexType(IndexType EncryptIndexType) *EncryptOptions {
+	e.IndexType = &IndexType
+	return e
+}
+
+func (e *EncryptOptions) SetContentionFactor(contentionFactor int) *EncryptOptions {
+	e.ContentionFactor = &contentionFactor
+	return e
+}
+
 // MergeEncryptOptions combines the argued EncryptOptions in a last-one wins fashion.
 func MergeEncryptOptions(opts ...*EncryptOptions) *EncryptOptions {
 	eo := Encrypt()
@@ -57,6 +77,14 @@ func MergeEncryptOptions(opts ...*EncryptOptions) *EncryptOptions {
 		}
 		if opt.Algorithm != "" {
 			eo.Algorithm = opt.Algorithm
+		}
+
+		if opt.IndexType != nil {
+			eo.IndexType = opt.IndexType
+		}
+
+		if opt.ContentionFactor != nil {
+			eo.ContentionFactor = opt.ContentionFactor
 		}
 	}
 
