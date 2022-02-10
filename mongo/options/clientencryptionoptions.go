@@ -155,3 +155,20 @@ type EncryptedCollectionOptions struct {
 	ECOCCollection string
 	Fields         []EncryptedFieldOptions
 }
+
+type QueryTypeConfig struct {
+	QueryType  string
+	Contention *int64
+}
+type EncryptedField struct {
+	KeyID    *primitive.Binary
+	Path     string
+	BSONType string
+	Queries  []QueryTypeConfig
+}
+type EncryptedFieldConfig struct {
+	ESCCollection  string
+	ECCCollection  string
+	ECOCCollection string
+	Fields         []EncryptedField
+}

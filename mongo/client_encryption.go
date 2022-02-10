@@ -174,3 +174,10 @@ func (ce *ClientEncryption) CreateCollection(ctx context.Context, db *Database, 
 	}
 	return db.CreateCollection(ctx, name, cco)
 }
+
+func (ce *ClientEncryption) Compact(ctx context.Context, coll *Collection, efc *options.EncryptedFieldConfig) *SingleResult {
+	db := coll.db
+	// TODO: use libmongocrypt to generate token map.
+	// TODO: Use efc to append EncryptionInformation.
+	return db.RunCommand(ctx, bson.D{{"ping", 1}})
+}

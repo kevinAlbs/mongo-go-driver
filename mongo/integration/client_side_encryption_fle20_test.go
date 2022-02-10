@@ -178,3 +178,40 @@ func TestFLE2ExplicitEncryption(t *testing.T) {
 		mt.Logf("'ciphertext' is encoded as: %x\n", ciphertext.Data)
 	})
 }
+
+func TestFLE2Compact(t *testing.T) {
+	mt := mtest.New(t, mtest.NewOptions().MinServerVersion("5.0").CreateClient(false))
+
+	mt.Run("Compact", func(mt *mtest.T) {
+		kvClient := mt.Client
+		kmsProviders := map[string]map[string]interface{}{
+			"local": {
+				"key": localMasterKey,
+			},
+		}
+		ceOpts := options.ClientEncryption().SetKeyVaultNamespace("keyvault.datakeys").SetKmsProviders(kmsProviders)
+		ce, err := mongo.NewClientEncryption(kvClient, ceOpts)
+		assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
+		defer ce.Close(context.TODO())
+
+		keyid, err := ce.CreateDataKey(context.TODO(), "local")
+		assert.Nil(mt, err, "error in CreateDataKey: %v", err)
+
+		dataClient, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mtest.ClusterURI()))
+		assert.Nil(mt, err, "error in Connect: %v", err)
+
+		coll := dataClient.Database("foo").Collection("bar")
+		efc := options.EncryptedFieldConfig{
+			Fields: []options.EncryptedField{{
+				KeyID:    &keyid,
+				Path:     "ssn",
+				BSONType: "string",
+				Queries: []options.QueryTypeConfig{{
+					QueryType: "Equality",
+				}},
+			}},
+		}
+		res := ce.Compact(context.TODO(), coll, &efc)
+		assert.Nil(mt, res.Err(), "error in Compact: %v", res)
+	})
+}
