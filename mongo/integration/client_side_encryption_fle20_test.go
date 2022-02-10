@@ -77,15 +77,15 @@ func TestFLE20CreateCollection(t *testing.T) {
 		defer ce.Close(context.TODO())
 		assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
 
-		eco := options.EncryptedCollectionOptions{
+		eco := options.EncryptedFieldConfig{
 			ESCCollection:  "foo_esc",
 			ECCCollection:  "foo_ecc",
 			ECOCCollection: "foo_ecoc",
-			Fields: []options.EncryptedFieldOptions{
+			Fields: []options.EncryptedField{
 				{
 					Path:     "ssn",
 					BSONType: "string",
-					Queries: []options.EncryptedQueryOptions{
+					Queries: []options.QueryTypeConfig{
 						{QueryType: "equality"},
 					},
 				},
@@ -115,22 +115,22 @@ func TestFLE20CreateCollection(t *testing.T) {
 		assert.Nil(t, err, "error in data client Connect: %v", err)
 		defer client.Disconnect(context.TODO())
 
-		eco := options.EncryptedCollectionOptions{
+		eco := options.EncryptedFieldConfig{
 			ESCCollection:  "foo_esc",
 			ECCCollection:  "foo_ecc",
 			ECOCCollection: "foo_ecoc",
-			Fields: []options.EncryptedFieldOptions{
+			Fields: []options.EncryptedField{
 				{
 					Path:     "ssn",
 					BSONType: "string",
-					Queries: []options.EncryptedQueryOptions{
+					Queries: []options.QueryTypeConfig{
 						{QueryType: "equality"},
 					},
 				},
 			},
 		}
 
-		cco := options.CreateCollection().SetEncryptedCollectionOptions(&eco)
+		cco := options.CreateCollection().SetEncryptedFieldConfig(&eco)
 		db := client.Database("db")
 		db.Collection("coll").Drop(context.TODO())
 		err = ce.CreateCollection(context.TODO(), db, "coll", "local", nil, cco)

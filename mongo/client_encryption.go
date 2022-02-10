@@ -143,10 +143,10 @@ func splitNamespace(ns string) (string, string) {
 /* AddKeysToEncryptedCollectionOptions creates Data Encryption Keys for any missing keys in the passed @opts.
  * For any nil CreateEncryptedCollectionOptions.Fields.KeyID, a new key is created with @kmsProvider and @dkopts.
  */
-func (ce *ClientEncryption) AddKeysToEncryptedCollectionOptions(ctx context.Context, opts *options.EncryptedCollectionOptions, kmsProvider string, dkopts *options.DataKeyOptions) error {
+func (ce *ClientEncryption) AddKeysToEncryptedCollectionOptions(ctx context.Context, efc *options.EncryptedFieldConfig, kmsProvider string, dkopts *options.DataKeyOptions) error {
 	/* TODO: If any KeyID is nil in opts.Fields, create a key for the user. */
-	for i := range opts.Fields {
-		eco := &opts.Fields[i]
+	for i := range efc.Fields {
+		eco := &efc.Fields[i]
 		if eco.KeyID == nil {
 			keyid, err := ce.CreateDataKey(ctx, kmsProvider, dkopts)
 			if err != nil {
@@ -162,8 +162,8 @@ func (ce *ClientEncryption) AddKeysToEncryptedCollectionOptions(ctx context.Cont
 // For any nil CreateEncryptedCollectionOptions.Fields.KeyID, a new key is created with @kmsProvider and @dkopts.
 func (ce *ClientEncryption) CreateCollection(ctx context.Context, db *Database, name string, kmsProvider string, dkopts *options.DataKeyOptions, opts ...*options.CreateCollectionOptions) error {
 	cco := options.MergeCreateCollectionOptions(opts...)
-	for i := range cco.EncryptedCollectionOptions.Fields {
-		efo := &cco.EncryptedCollectionOptions.Fields[i]
+	for i := range cco.EncryptedFieldConfig.Fields {
+		efo := &cco.EncryptedFieldConfig.Fields[i]
 		if efo.KeyID == nil {
 			keyid, err := ce.CreateDataKey(ctx, kmsProvider, dkopts)
 			if err != nil {

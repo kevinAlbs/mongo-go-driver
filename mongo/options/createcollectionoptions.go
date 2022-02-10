@@ -127,7 +127,7 @@ type CreateCollectionOptions struct {
 	TimeSeriesOptions *TimeSeriesOptions
 
 	// Options for EncryptedCollections.
-	EncryptedCollectionOptions *EncryptedCollectionOptions
+	EncryptedFieldConfig *EncryptedFieldConfig
 }
 
 // CreateCollection creates a new CreateCollectionOptions instance.
@@ -201,8 +201,8 @@ func (c *CreateCollectionOptions) SetTimeSeriesOptions(timeSeriesOpts *TimeSerie
 	return c
 }
 
-func (c *CreateCollectionOptions) SetEncryptedCollectionOptions(eco *EncryptedCollectionOptions) *CreateCollectionOptions {
-	c.EncryptedCollectionOptions = eco
+func (c *CreateCollectionOptions) SetEncryptedFieldConfig(eco *EncryptedFieldConfig) *CreateCollectionOptions {
+	c.EncryptedFieldConfig = eco
 	return c
 }
 
@@ -249,8 +249,8 @@ func MergeCreateCollectionOptions(opts ...*CreateCollectionOptions) *CreateColle
 		if opt.TimeSeriesOptions != nil {
 			cc.TimeSeriesOptions = opt.TimeSeriesOptions
 		}
-		if opt.EncryptedCollectionOptions != nil {
-			cc.EncryptedCollectionOptions = opt.EncryptedCollectionOptions
+		if opt.EncryptedFieldConfig != nil {
+			cc.EncryptedFieldConfig = opt.EncryptedFieldConfig
 		}
 	}
 
