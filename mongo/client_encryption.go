@@ -211,3 +211,10 @@ func (ce *ClientEncryption) DropCollection(ctx context.Context, db *Database, co
 	}
 	return nil
 }
+
+func (ce *ClientEncryption) GenerateEquality(val interface{}, opts *options.GenerateEqualityOptions) bson.D {
+	// TODO: return $fle_pseudo_to_be_named_by_query.
+	return bson.D{{
+		"$eq", val,
+	}}
+}

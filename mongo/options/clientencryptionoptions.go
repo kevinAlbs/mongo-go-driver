@@ -155,3 +155,9 @@ type EncryptedFieldConfig struct {
 	ECOCCollection string
 	Fields         []EncryptedField
 }
+
+type GenerateEqualityOptions struct {
+	KeyID         *primitive.Binary
+	KeyAltName    *string
+	MaxContention *int
+}
