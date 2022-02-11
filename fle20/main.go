@@ -128,20 +128,14 @@ type Record struct {
 
 // getEncryptedClient returns a new mongo.Client configured with automatic encryption.
 func getEncryptedClient(ctx context.Context) *mongo.Client {
-	// Get EncryptedFieldConfig from file.
-	efcFile, found := os.LookupEnv("EFC_FILE")
-	if !found {
-		log.Fatalf("EFC_FILE environment variable must be set to the file path containing the Encrypted Field Config JSON\n" +
-			"Try: fle2poc setup")
-	}
-	efcBytes, err := os.ReadFile(efcFile)
+	efcBytes, err := os.ReadFile(EFC_FILE)
 	if err != nil {
-		log.Fatalf("error reading file %v: %v", efcFile, err)
+		log.Fatalf("error reading file %v: %v", EFC_FILE, err)
 	}
 	var efc options.EncryptedFieldConfig
 	err = bson.UnmarshalExtJSON(efcBytes, true /* canonical */, &efc)
 	if err != nil {
-		log.Fatalf("error loading Encrypted Field Config from %v: %v", efcFile, err)
+		log.Fatalf("error loading Encrypted Field Config from %v: %v", EFC_FILE, err)
 	}
 
 	localKEK, err := base64.StdEncoding.DecodeString(LOCAL_KEK)
