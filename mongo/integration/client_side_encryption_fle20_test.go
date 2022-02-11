@@ -130,10 +130,9 @@ func TestFLE20CreateCollection(t *testing.T) {
 			},
 		}
 
-		cco := options.CreateCollection().SetEncryptedFieldConfig(&eco)
 		db := client.Database("db")
 		db.Collection("coll").Drop(context.TODO())
-		err = ce.CreateCollection(context.TODO(), db, "coll", "local", nil, cco)
+		err = ce.CreateCollection(context.TODO(), db, "coll", "local", nil, &eco)
 		fmt.Printf("error in CreateCollection: %v\n", eco)
 	})
 }
@@ -245,7 +244,7 @@ func TestFLE2DropCollection(t *testing.T) {
 			}},
 		}
 
-		ce.CreateCollection(context.TODO(), db, "bar", "local", nil /* DataKeyOpts */, options.CreateCollection().SetEncryptedFieldConfig(&efc))
+		ce.CreateCollection(context.TODO(), db, "bar", "local", nil /* DataKeyOpts */, &efc)
 
 		err = ce.DropCollection(context.TODO(), db, "bar", &efc)
 		assert.Nil(mt, err, "error in DropCollection: %v", err)
@@ -287,7 +286,7 @@ func TestFLE2EncryptedFieldConfigMap(t *testing.T) {
 		err = ce.DropCollection(context.TODO(), db, "bar", &efc)
 		assert.Nil(mt, err, "error in DropCollection: %v", err)
 
-		ce.CreateCollection(context.TODO(), db, "bar", "local", nil /* DataKeyOpts */, options.CreateCollection().SetEncryptedFieldConfig(&efc))
+		ce.CreateCollection(context.TODO(), db, "bar", "local", nil /* DataKeyOpts */, &efc)
 
 		aeo := options.AutoEncryption().
 			SetKeyVaultNamespace("keyvault.datakeys").
@@ -339,7 +338,7 @@ func TestFLE2BypassQueryAnalysis(t *testing.T) {
 		err = ce.DropCollection(context.TODO(), db, "bar", &efc)
 		assert.Nil(mt, err, "error in DropCollection: %v", err)
 
-		ce.CreateCollection(context.TODO(), db, "bar", "local", nil /* DataKeyOpts */, options.CreateCollection().SetEncryptedFieldConfig(&efc))
+		ce.CreateCollection(context.TODO(), db, "bar", "local", nil /* DataKeyOpts */, &efc)
 
 		aeo := options.AutoEncryption().
 			SetKeyVaultNamespace("keyvault.datakeys").
@@ -392,7 +391,7 @@ func TestFLE2GenerateEquality(t *testing.T) {
 		err = ce.DropCollection(context.TODO(), db, "bar", &efc)
 		assert.Nil(mt, err, "error in DropCollection: %v", err)
 
-		ce.CreateCollection(context.TODO(), db, "bar", "local", nil /* DataKeyOpts */, options.CreateCollection().SetEncryptedFieldConfig(&efc))
+		ce.CreateCollection(context.TODO(), db, "bar", "local", nil /* DataKeyOpts */, &efc)
 
 		aeo := options.AutoEncryption().
 			SetKeyVaultNamespace("keyvault.datakeys").
