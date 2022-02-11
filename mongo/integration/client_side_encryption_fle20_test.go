@@ -215,3 +215,39 @@ func TestFLE2Compact(t *testing.T) {
 		assert.Nil(mt, res.Err(), "error in Compact: %v", res)
 	})
 }
+
+func TestFLE2DropCollection(t *testing.T) {
+	mt := mtest.New(t, mtest.NewOptions().MinServerVersion("5.0").CreateClient(false))
+
+	mt.Run("Drop", func(mt *mtest.T) {
+		kvClient := mt.Client
+		kmsProviders := map[string]map[string]interface{}{
+			"local": {
+				"key": localMasterKey,
+			},
+		}
+		ceOpts := options.ClientEncryption().SetKeyVaultNamespace("keyvault.datakeys").SetKmsProviders(kmsProviders)
+		ce, err := mongo.NewClientEncryption(kvClient, ceOpts)
+		assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
+		defer ce.Close(context.TODO())
+
+		dataClient, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mtest.ClusterURI()))
+		assert.Nil(mt, err, "error in Connect: %v", err)
+
+		db := dataClient.Database("foo")
+		efc := options.EncryptedFieldConfig{
+			Fields: []options.EncryptedField{{
+				Path:     "ssn",
+				BSONType: "string",
+				Queries: []options.QueryTypeConfig{{
+					QueryType: "Equality",
+				}},
+			}},
+		}
+
+		ce.CreateCollection(context.TODO(), db, "bar", "local", nil /* DataKeyOpts */, options.CreateCollection().SetEncryptedFieldConfig(&efc))
+
+		err = ce.DropCollection(context.TODO(), db, "bar", &efc)
+		assert.Nil(mt, err, "error in DropCollection: %v", err)
+	})
+}

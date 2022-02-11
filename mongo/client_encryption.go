@@ -181,3 +181,33 @@ func (ce *ClientEncryption) Compact(ctx context.Context, coll *Collection, efc *
 	// TODO: Use efc to append EncryptionInformation.
 	return db.RunCommand(ctx, bson.D{{"ping", 1}})
 }
+
+func getOrDefault(collName string, stateCollectionName string, suffix string) string {
+	if stateCollectionName == "" {
+		return "fle2." + collName + "." + suffix
+	}
+	return stateCollectionName
+}
+
+// DropCollection drops the following collections in @db:
+// 1. @coll
+// 2. The ESCCollection identified in @efc.
+// 3. The ECCCollection identified in @efc.
+// 4. The ECOCCollection identified in @efc.
+// Calls to Drop resulting in a server error code 26 is ignored.
+// Any other error immediately returns the error and does not proceed to drop the remaining collections.
+func (ce *ClientEncryption) DropCollection(ctx context.Context, db *Database, coll string, efc *options.EncryptedFieldConfig) error {
+	if err := db.Collection(coll).Drop(ctx); err != nil {
+		return err
+	}
+	if err := db.Collection(getOrDefault(coll, efc.ESCCollection, "esc")).Drop(ctx); err != nil {
+		return err
+	}
+	if err := db.Collection(getOrDefault(coll, efc.ECCCollection, "ecc")).Drop(ctx); err != nil {
+		return err
+	}
+	if err := db.Collection(getOrDefault(coll, efc.ECOCCollection, "ecoc")).Drop(ctx); err != nil {
+		return err
+	}
+	return nil
+}
