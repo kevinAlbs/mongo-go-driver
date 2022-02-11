@@ -251,3 +251,55 @@ func TestFLE2DropCollection(t *testing.T) {
 		assert.Nil(mt, err, "error in DropCollection: %v", err)
 	})
 }
+
+func TestFLE2EncryptedFieldConfigMap(t *testing.T) {
+	mt := mtest.New(t, mtest.NewOptions().MinServerVersion("5.0").CreateClient(false))
+
+	mt.Run("EncryptedFieldConfigMap", func(mt *mtest.T) {
+		kvClient := mt.Client
+		kmsProviders := map[string]map[string]interface{}{
+			"local": {
+				"key": localMasterKey,
+			},
+		}
+		ceOpts := options.ClientEncryption().SetKeyVaultNamespace("keyvault.datakeys").SetKmsProviders(kmsProviders)
+		ce, err := mongo.NewClientEncryption(kvClient, ceOpts)
+		assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
+		defer ce.Close(context.TODO())
+
+		keyid, err := ce.CreateDataKey(context.TODO(), "local")
+
+		dataClient, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mtest.ClusterURI()))
+		assert.Nil(mt, err, "error in Connect: %v", err)
+
+		db := dataClient.Database("foo")
+		efc := options.EncryptedFieldConfig{
+			Fields: []options.EncryptedField{{
+				Path:     "ssn",
+				KeyID:    &keyid,
+				BSONType: "string",
+				Queries: []options.QueryTypeConfig{{
+					QueryType: "Equality",
+				}},
+			}},
+		}
+
+		err = ce.DropCollection(context.TODO(), db, "bar", &efc)
+		assert.Nil(mt, err, "error in DropCollection: %v", err)
+
+		ce.CreateCollection(context.TODO(), db, "bar", "local", nil /* DataKeyOpts */, options.CreateCollection().SetEncryptedFieldConfig(&efc))
+
+		aeo := options.AutoEncryption().
+			SetKeyVaultNamespace("keyvault.datakeys").
+			SetEncryptedFieldConfigMap(map[string]options.EncryptedFieldConfig{"foo.bar": efc}).
+			SetKmsProviders(kmsProviders)
+
+		encryptedClient, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mtest.ClusterURI()).SetAutoEncryptionOptions(aeo))
+		defer encryptedClient.Disconnect(context.TODO())
+		assert.Nil(mt, err, "error in Connect: %v", err)
+
+		encryptedColl := encryptedClient.Database("foo").Collection("bar")
+		_, err = encryptedColl.InsertOne(context.TODO(), bson.D{{"ssn", "123-45-6789"}})
+		assert.Nil(mt, err, "error in InsertOne: %v", err)
+	})
+}
