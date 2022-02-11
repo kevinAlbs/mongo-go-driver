@@ -95,12 +95,12 @@ func setup() {
 	// CreateEncryptedCollection creates a separate Data Encryption Key for "ssn" and "blood".
 	healthDB := dataClient.Database("health")
 	// Drop the collection in case it exists from a previous run.
-	err = ce.DropCollection(ctx, healthDB, "blood", &efc)
+	err = ce.DropEncryptedCollection(ctx, healthDB, "blood", &efc)
 	if err != nil {
 		log.Fatalf("error in DropEncryptedCollection: %v", err)
 	}
 
-	err = ce.CreateCollection(ctx, healthDB, "blood", "local", nil /* data key opts */, &efc)
+	err = ce.CreateEncryptedCollection(ctx, healthDB, "blood", "local", nil /* data key opts */, &efc)
 	if err != nil {
 		log.Fatalf("error in CreateEncryptedCollection: %v", err)
 	}

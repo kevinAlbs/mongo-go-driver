@@ -158,9 +158,9 @@ func (ce *ClientEncryption) AddKeysToEncryptedCollectionOptions(ctx context.Cont
 	return nil
 }
 
-// CreateCollection creates a collection using @db with name @name.
+// CreateEncryptedCollection creates a collection using @db with name @name.
 // For any nil CreateEncryptedCollectionOptions.Fields.KeyID, a new key is created with @kmsProvider and @dkopts.
-func (ce *ClientEncryption) CreateCollection(ctx context.Context, db *Database, name string, kmsProvider string, dkopts *options.DataKeyOptions, efc *options.EncryptedFieldConfig, opts ...*options.CreateCollectionOptions) error {
+func (ce *ClientEncryption) CreateEncryptedCollection(ctx context.Context, db *Database, name string, kmsProvider string, dkopts *options.DataKeyOptions, efc *options.EncryptedFieldConfig, opts ...*options.CreateCollectionOptions) error {
 	cco := options.MergeCreateCollectionOptions(opts...)
 	for i := range efc.Fields {
 		efo := &efc.Fields[i]
@@ -189,14 +189,14 @@ func getOrDefault(collName string, stateCollectionName string, suffix string) st
 	return stateCollectionName
 }
 
-// DropCollection drops the following collections in @db:
+// DropEncryptedCollection drops the following collections in @db:
 // 1. @coll
 // 2. The ESCCollection identified in @efc.
 // 3. The ECCCollection identified in @efc.
 // 4. The ECOCCollection identified in @efc.
 // Calls to Drop resulting in a server error code 26 is ignored.
 // Any other error immediately returns the error and does not proceed to drop the remaining collections.
-func (ce *ClientEncryption) DropCollection(ctx context.Context, db *Database, coll string, efc *options.EncryptedFieldConfig) error {
+func (ce *ClientEncryption) DropEncryptedCollection(ctx context.Context, db *Database, coll string, efc *options.EncryptedFieldConfig) error {
 	if err := db.Collection(coll).Drop(ctx); err != nil {
 		return err
 	}
