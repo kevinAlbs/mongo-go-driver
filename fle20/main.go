@@ -3,7 +3,7 @@
 // Assumes the key vault and data are in separate MongoDB clusters.
 // Performs an insert and query on the "ssn" field with automatic encryption.
 //
-// To run this example, libmongocrypt must be installed. Build with:
+// To build this example, libmongocrypt must be installed. Build with:
 // go build -tags cse -o fle2poc main.go
 
 package main
@@ -131,13 +131,8 @@ type Record struct {
 	Blood_type string
 }
 
-// insert adds a record to "health.blood".
-// The EFC_FILE environment variable must be set to a file path to the Encrypted Field Config created in setup.
-// The LOCAL_KEK environment variable must be set to a 96 byte base64 encoded string for the Key Encryption Key.
-// The MONGODB_URI_KEYVAULT environment variable may be set. It defaults to mongodb://localhost:27017.
-// The MONGODB_URI_DATA environment variable may be set. It defaults to mongodb://localhost:27017.
-func insert(name string, ssn string, blood_type string) {
-	ctx := context.Background()
+// getEncryptedClient returns a new mongo.Client configured with automatic encryption.
+func getEncryptedClient(ctx context.Context) *mongo.Client {
 	// Get EncryptedFieldConfig from file.
 	efcFile, found := os.LookupEnv("EFC_FILE")
 	if !found {
@@ -196,6 +191,18 @@ func insert(name string, ssn string, blood_type string) {
 	if err != nil {
 		log.Fatalf("error in Connect to encryptedClient: %v", err)
 	}
+	return encryptedClient
+}
+
+// insert adds a record to "health.blood".
+// The EFC_FILE environment variable must be set to a file path to the Encrypted Field Config created in setup.
+// The LOCAL_KEK environment variable must be set to a 96 byte base64 encoded string for the Key Encryption Key.
+// The MONGODB_URI_KEYVAULT environment variable may be set. It defaults to mongodb://localhost:27017.
+// The MONGODB_URI_DATA environment variable may be set. It defaults to mongodb://localhost:27017.
+func insert(name string, ssn string, blood_type string) {
+	ctx := context.Background()
+
+	encryptedClient := getEncryptedClient(ctx)
 	defer encryptedClient.Disconnect(ctx)
 
 	coll := encryptedClient.Database("health").Collection("blood")
@@ -217,73 +224,16 @@ func insert(name string, ssn string, blood_type string) {
 // The MONGODB_URI_DATA environment variable may be set. It defaults to mongodb://localhost:27017.
 func findOne(ssn string) {
 	ctx := context.Background()
-	// Get EncryptedFieldConfig from file.
-	efcFile, found := os.LookupEnv("EFC_FILE")
-	if !found {
-		log.Fatalf("EFC_FILE environment variable must be set to the file path containing the Encrypted Field Config JSON\n" +
-			"Try: fle2poc setup")
-	}
-	efcBytes, err := os.ReadFile(efcFile)
-	if err != nil {
-		log.Fatalf("error reading file %v: %v", efcFile, err)
-	}
-	var efc options.EncryptedFieldConfig
-	err = bson.UnmarshalExtJSON(efcBytes, true /* canonical */, &efc)
-	if err != nil {
-		log.Fatalf("error loading Encrypted Field Config from %v: %v", efcFile, err)
-	}
-
-	// localKEK is a 96 byte Key Encryption Key for the local KMS provider.
-	localKEKBase64, found := os.LookupEnv("LOCAL_KEK")
-	if !found {
-		log.Fatal("LOCAL_KEK environment variable must be set to a 96 byte base64 string. Try:\n" +
-			"export LOCAL_KEK=$(openssl rand -base64 96)")
-	}
-	localKEK, err := base64.StdEncoding.DecodeString(localKEKBase64)
-	if err != nil {
-		log.Fatalf("LOCAL_KEK is not valid base64: %v", err)
-	}
-
-	kmsProviders := map[string]map[string]interface{}{
-		"local": {
-			"key": localKEK,
-		},
-	}
-
-	// keyVaultURI must refer to the MongoDB cluster containing encrypted data keys.
-	keyVaultURI, found := os.LookupEnv("MONGODB_URI_KEYVAULT")
-	if !found {
-		keyVaultURI = "mongodb://localhost:27017"
-	}
-
-	// Create client with automatic encryption.
-	aeo := options.AutoEncryption().
-		SetKmsProviders(kmsProviders).
-		SetKeyVaultNamespace("keyvault.datakeys").
-		SetEncryptedFieldConfigMap(map[string]options.EncryptedFieldConfig{
-			"health.blood": efc,
-		}).
-		SetKeyVaultClientOptions(options.Client().ApplyURI(keyVaultURI))
-
-	// dataURI must refer to the MongoDB cluster containing encrypted data.
-	dataURI, found := os.LookupEnv("MONGODB_URI_DATA")
-	if !found {
-		dataURI = "mongodb://localhost:27017"
-	}
-
-	encryptedClient, err := mongo.Connect(ctx, options.Client().ApplyURI(dataURI).SetAutoEncryptionOptions(aeo))
-	if err != nil {
-		log.Fatalf("error in Connect to encryptedClient: %v", err)
-	}
+	encryptedClient := getEncryptedClient(ctx)
 	defer encryptedClient.Disconnect(ctx)
 
 	coll := encryptedClient.Database("health").Collection("blood")
 	res := coll.FindOne(ctx, bson.D{{"ssn", ssn}})
 	if res.Err() != nil {
-		log.Fatalf("error in FindOne: %v", err)
+		log.Fatalf("error in FindOne: %v", res.Err())
 	}
 	var record Record
-	err = res.Decode(&record)
+	err := res.Decode(&record)
 	if err != nil {
 		log.Fatalf("error in Decode: %v", err)
 	}
