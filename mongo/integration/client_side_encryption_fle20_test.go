@@ -132,7 +132,7 @@ func TestFLE20CreateCollection(t *testing.T) {
 
 		db := client.Database("db")
 		db.Collection("coll").Drop(context.TODO())
-		err = ce.CreateEncryptedCollection(context.TODO(), db, "coll", "local", nil, &eco)
+		_, err = ce.CreateEncryptedCollection(context.TODO(), db, "coll", "local", nil, &eco)
 		fmt.Printf("error in CreateCollection: %v\n", eco)
 	})
 }

@@ -160,19 +160,27 @@ func (ce *ClientEncryption) AddKeysToEncryptedCollectionOptions(ctx context.Cont
 
 // CreateEncryptedCollection creates a collection using @db with name @name.
 // For any nil CreateEncryptedCollectionOptions.Fields.KeyID, a new key is created with @kmsProvider and @dkopts.
-func (ce *ClientEncryption) CreateEncryptedCollection(ctx context.Context, db *Database, name string, kmsProvider string, dkopts *options.DataKeyOptions, efc *options.EncryptedFieldConfig, opts ...*options.CreateCollectionOptions) error {
+// Returns a new EncryptedFieldConfig. The EncryptedFieldConfig will apply default KeyIDs and collection names.
+func (ce *ClientEncryption) CreateEncryptedCollection(ctx context.Context, db *Database, name string, kmsProvider string, dkopts *options.DataKeyOptions, efc *options.EncryptedFieldConfig, opts ...*options.CreateCollectionOptions) (options.EncryptedFieldConfig, error) {
+	copiedEfc := *efc
+
+	copiedEfc.ESCCollection = getOrDefault(name, efc.ESCCollection, "esc")
+	copiedEfc.ECCCollection = getOrDefault(name, efc.ECCCollection, "ecc")
+	copiedEfc.ECOCCollection = getOrDefault(name, efc.ECOCCollection, "ecoc")
+
 	cco := options.MergeCreateCollectionOptions(opts...)
-	for i := range efc.Fields {
-		efo := &efc.Fields[i]
+	for i := range copiedEfc.Fields {
+		efo := &copiedEfc.Fields[i]
 		if efo.KeyID == nil {
 			keyid, err := ce.CreateDataKey(ctx, kmsProvider, dkopts)
 			if err != nil {
-				return err
+				return copiedEfc, err
 			}
 			efo.KeyID = &keyid
 		}
 	}
-	return db.CreateCollection(ctx, name, cco)
+	err := db.CreateCollection(ctx, name, cco)
+	return copiedEfc, err
 }
 
 func (ce *ClientEncryption) Compact(ctx context.Context, coll *Collection, efc *options.EncryptedFieldConfig) *SingleResult {

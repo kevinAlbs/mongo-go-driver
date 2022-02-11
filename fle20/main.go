@@ -100,7 +100,7 @@ func setup() {
 		log.Fatalf("error in DropEncryptedCollection: %v", err)
 	}
 
-	err = ce.CreateEncryptedCollection(ctx, healthDB, "blood", "local", nil /* data key opts */, &efc)
+	efc, err = ce.CreateEncryptedCollection(ctx, healthDB, "blood", "local", nil /* data key opts */, &efc)
 	if err != nil {
 		log.Fatalf("error in CreateEncryptedCollection: %v", err)
 	}
