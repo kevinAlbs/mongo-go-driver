@@ -104,7 +104,7 @@ func setup() {
 	if err != nil {
 		log.Fatalf("error in CreateEncryptedCollection: %v", err)
 	}
-	// TODO: this needs to overwrite the encrypted field config.
+
 	// Print the canonical extended JSON of the resulting EncryptedFieldConfig.
 	// This contains the KeyIDs created in CreateEncryptedCollection.
 	fmt.Println("Created 'health.blood' collection.")
