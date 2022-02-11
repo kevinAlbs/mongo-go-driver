@@ -33,6 +33,7 @@ type AutoEncryptionOptions struct {
 	ExtraOptions            map[string]interface{}
 	TLSConfig               map[string]*tls.Config
 	EncryptedFieldConfigMap map[string]EncryptedFieldConfig
+	BypassQueryAnalysis     *bool
 }
 
 // AutoEncryption creates a new AutoEncryptionOptions configured with default values.
@@ -116,6 +117,12 @@ func (a *AutoEncryptionOptions) SetTLSConfig(tlsOpts map[string]*tls.Config) *Au
 
 func (a *AutoEncryptionOptions) SetEncryptedFieldConfigMap(efcMap map[string]EncryptedFieldConfig) *AutoEncryptionOptions {
 	a.EncryptedFieldConfigMap = efcMap
+	return a
+}
+
+// SetBypassQueryAnalysis specifies whether or not queries should be analyzed for automatic encryption.
+func (a *AutoEncryptionOptions) SetBypassQueryAnalysis(bypass bool) *AutoEncryptionOptions {
+	a.BypassAutoEncryption = &bypass
 	return a
 }
 
