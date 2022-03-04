@@ -43,34 +43,17 @@ func NewClientEncryption(keyVaultClient *Client, opts ...*options.ClientEncrypti
 	db, coll := splitNamespace(ceo.KeyVaultNamespace)
 	ce.keyVaultColl = ce.keyVaultClient.Database(db).Collection(coll, keyVaultCollOpts)
 
-	credentialCallback := func(kmsProvider string) interface{} {
-		// By default, do nothing.
-		return nil
-	}
+	var credentialCallback options.CredentialCallbackFn
 
-	awsEmpty := false
-	if awsMap, ok := ceo.KmsProviders["aws"]; ok {
-		awsEmpty = true
-		for range awsMap {
-			awsEmpty = false
-			break
-		}
-	}
-
-	// If an empty "aws" map is configured, the driver is responsible for fetching "aws" credentials.
-	if awsEmpty {
-		// Remove the "aws" field from the map. libmongocrypt considers an empty "aws": {} an error.
-		delete(ceo.KmsProviders, "aws")
-		if ceo.CredentialCallback != nil {
-			credentialCallback = ceo.CredentialCallback
-		} else {
-			// Use callback to fetch credentials using same method as MONGODB-AWS.
-			credentialCallback = func(kmsProvider string) interface{} {
-				fmt.Println("TODO: fetching credentials with MONGODB-AWS not fully implemented. This only checks environment variables")
-				return map[string]interface{}{
-					"accessKeyId":     os.Getenv("AWS_ACCESS_KEY_ID"),
-					"secretAccessKey": os.Getenv("AWS_SECRET_ACCESS_KEY"),
-				}
+	if ceo.CredentialCallback != nil {
+		credentialCallback = ceo.CredentialCallback
+	} else {
+		// Use callback to fetch credentials using same method as MONGODB-AWS.
+		credentialCallback = func(kmsProvider string) interface{} {
+			fmt.Println("TODO: fetching credentials with MONGODB-AWS not fully implemented. This only checks environment variables")
+			return map[string]interface{}{
+				"accessKeyId":     os.Getenv("AWS_ACCESS_KEY_ID"),
+				"secretAccessKey": os.Getenv("AWS_SECRET_ACCESS_KEY"),
 			}
 		}
 	}
