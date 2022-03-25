@@ -9,8 +9,10 @@ package integration
 import (
 	"context"
 	"os"
+	"reflect"
 	"testing"
 	"time"
+	"unsafe"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/internal/testutil/assert"
@@ -321,4 +323,112 @@ func tryNextGetmoreError(mt *mtest.T, cursor tryNextCursor) {
 func assertCursorBatchLength(mt *mtest.T, cursor *mongo.Cursor, expected int) {
 	batchLen := cursor.RemainingBatchLength()
 	assert.Equal(mt, expected, batchLen, "expected remaining batch length %d, got %d", expected, batchLen)
+}
+
+// GODRIVER-2311
+// Assert that decoded documents containing byte slices do not reference the same underlying byte
+// array as Cursor.Current.
+func TestCursorDecodeByteSlicesUseDistinctArrays(t *testing.T) {
+	mt := mtest.New(t, mtest.NewOptions().CreateClient(false))
+	defer mt.Close()
+
+	type fooBytes struct {
+		Foo []byte
+	}
+
+	mt.RunOpts("struct with byte slice", mtest.NewOptions(), func(mt *mtest.T) {
+		_, err := mt.Coll.InsertOne(context.Background(), &fooBytes{
+			Foo: []byte{0, 1, 2, 3, 4, 5},
+		})
+		assert.Nil(mt, err, "Error in InsertOne: %v", err)
+
+		c, err := mt.Coll.Find(context.Background(), bson.D{})
+		assert.Nil(mt, err, "Find error: %v", err)
+
+		assert.True(mt, c.Next(context.Background()), "expected Next to be true, was false")
+		var got fooBytes
+
+		err = c.Decode(&got)
+		assert.Nil(mt, err, "Decode error: %v", err)
+
+		// This currently fails:
+		assertDifferentArrays(t, got.Foo, c.Current)
+
+		err = c.Close(context.Background())
+		assert.Nil(mt, err, "Close error: %v", err)
+	})
+
+	mt.RunOpts("iterate after unmarshal into struct with byte slice", mtest.NewOptions(), func(mt *mtest.T) {
+		// Insert two documents with distinct byte slices.
+		_, err := mt.Coll.InsertOne(context.Background(), &fooBytes{
+			Foo: []byte{0, 1, 2},
+		})
+		assert.Nil(mt, err, "Error in InsertOne: %v", err)
+		_, err = mt.Coll.InsertOne(context.Background(), &fooBytes{
+			Foo: []byte{2, 1, 0},
+		})
+		assert.Nil(mt, err, "Error in InsertOne: %v", err)
+
+		c, err := mt.Coll.Find(context.Background(), bson.D{})
+		assert.Nil(mt, err, "Find error: %v", err)
+
+		var got1, got2 fooBytes
+		assert.True(mt, c.Next(context.Background()), "expected Next to be true, was false")
+		err = c.Decode(&got1)
+		assert.Nil(mt, err, "Decode error: %v", err)
+		assert.Equal(mt, got1.Foo, []byte{0, 1, 2}, "expected first document to return %v, got %v", []byte{0, 1, 2}, got1.Foo)
+
+		assert.True(mt, c.Next(context.Background()), "expected Next to be true, was false")
+		err = c.Decode(&got2)
+		assert.Nil(mt, err, "Decode error: %v", err)
+		assert.Equal(mt, got2.Foo, []byte{2, 1, 0}, "expected second document to return %v, got %v", []byte{2, 1, 0}, got2.Foo)
+
+		// Check that got1.Foo has not changed.
+		assert.Equal(mt, got1.Foo, []byte{0, 1, 2}, "expected first document to stay as %v, got %v", []byte{0, 1, 2}, got1.Foo)
+
+		err = c.Close(context.Background())
+		assert.Nil(mt, err, "Close error: %v", err)
+	})
+}
+
+// assertDifferentArrays asserts that two byte slices reference distinct memory ranges, meaning
+// they reference different underlying byte arrays.
+func assertDifferentArrays(t *testing.T, a, b []byte) {
+	// Find the start and end memory addresses for the underlying byte array for each input byte
+	// slice.
+	sliceAddrRange := func(b []byte) (uintptr, uintptr) {
+		sh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+		return sh.Data, sh.Data + uintptr(sh.Cap-1)
+	}
+	aStart, aEnd := sliceAddrRange(a)
+	bStart, bEnd := sliceAddrRange(b)
+
+	// If "b" starts after "a" ends or "a" starts after "b" ends, there is no overlap.
+	if bStart > aEnd || aStart > bEnd {
+		return
+	}
+
+	// Otherwise, calculate the overlap start and end and print the memory overlap error message.
+	min := func(a, b uintptr) uintptr {
+		if a < b {
+			return a
+		}
+		return b
+	}
+	max := func(a, b uintptr) uintptr {
+		if a > b {
+			return a
+		}
+		return b
+	}
+	overlapLow := max(aStart, bStart)
+	overlapHigh := min(aEnd, bEnd)
+
+	t.Errorf("Byte slices point to the same the same underlying byte array:\n"+
+		"\ta addresses:\t%d ... %d\n"+
+		"\tb addresses:\t%d ... %d\n"+
+		"\toverlap:\t%d ... %d",
+		aStart, aEnd,
+		bStart, bEnd,
+		overlapLow, overlapHigh)
 }
