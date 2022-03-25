@@ -748,11 +748,7 @@ func (vr *valueReader) readBytes(length int32) ([]byte, error) {
 
 	start := vr.offset
 	vr.offset += int64(length)
-
-	b := make([]byte, length)
-	copy(b, vr.d[start:start+int64(length)])
-
-	return b, nil
+	return vr.d[start : start+int64(length)], nil
 }
 
 func (vr *valueReader) appendBytes(dst []byte, length int32) ([]byte, error) {
