@@ -1664,7 +1664,97 @@ func (coll *Collection) Indexes() IndexView {
 
 // Drop drops the collection on the server. This method ignores "namespace not found" errors so it is safe to drop
 // a collection that does not exist on the server.
-func (coll *Collection) Drop(ctx context.Context) error {
+func (coll *Collection) Drop(ctx context.Context, opts ...*options.DropCollectionOptions) error {
+	dco := options.MergeDropCollectionOptions(opts...)
+	efc := dco.EncryptedFields
+	var err error
+	if efc == nil {
+		efc, err = coll.db.getEncryptedFieldsFromMap(ctx, coll.name)
+		if err != nil {
+			return err
+		}
+	}
+	if efc == nil {
+		efc, err = coll.db.getEncryptedFieldsFromServer(ctx, coll.name)
+		if err != nil {
+			return err
+		}
+	}
+
+	if efc != nil {
+		return coll.dropEncryptedCollection(ctx, efc)
+	}
+
+	return coll.drop(ctx)
+}
+
+// dropEncryptedCollection drops collection with EncryptedFields.
+func (coll *Collection) dropEncryptedCollection(ctx context.Context, efc interface{}) error {
+	var efcBSON bsoncore.Document
+	efcBSON, err := transformBsoncoreDocument(coll.registry, efc, true /* mapAllowed */, "encryptedFields")
+	if err != nil {
+		return fmt.Errorf("error in MarshalWithRegistry: %v", err)
+	}
+
+	// Drop the data collection.
+	err = coll.drop(ctx)
+	if err != nil {
+		return err
+	}
+	// Drop the state collections ESCCollection, ECCCollection, and ECOCCollection.
+	// Drop ESCCollection.
+	escCollection := "enxcol_." + coll.name + ".esc"
+	val, err := efcBSON.LookupErr("escCollection")
+	var ok bool
+	if err == nil {
+		escCollection, ok = val.StringValueOK()
+		if !ok {
+			return fmt.Errorf("expected string for 'escCollection', got: %v", val.Type)
+		}
+	} else if err != bsoncore.ErrElementNotFound {
+		return err
+	}
+	err = coll.db.Collection(escCollection).drop(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Drop ECCCollection.
+	eccCollection := "enxcol_." + coll.name + ".ecc"
+	val, err = efcBSON.LookupErr("eccCollection")
+	if err == nil {
+		eccCollection, ok = val.StringValueOK()
+		if !ok {
+			return fmt.Errorf("expected string for 'eccCollection', got: %v", val.Type)
+		}
+	} else if err != bsoncore.ErrElementNotFound {
+		return err
+	}
+	err = coll.db.Collection(eccCollection).drop(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Drop ECOCCollection.
+	ecocCollection := "enxcol_." + coll.name + ".ecoc"
+	val, err = efcBSON.LookupErr("ecocCollection")
+	if err == nil {
+		ecocCollection, ok = val.StringValueOK()
+		if !ok {
+			return fmt.Errorf("expected string for 'ecocCollection', got: %v", val.Type)
+		}
+	} else if err != bsoncore.ErrElementNotFound {
+		return err
+	}
+	err = coll.db.Collection(ecocCollection).drop(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// drop drops a collection without EncryptedFields.
+func (coll *Collection) drop(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}

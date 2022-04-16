@@ -43,6 +43,7 @@ type Create struct {
 	serverAPI           *driver.ServerAPIOptions
 	expireAfterSeconds  *int64
 	timeSeries          bsoncore.Document
+	encryptedFields     bsoncore.Document
 }
 
 // NewCreate constructs and returns a new Create.
@@ -123,6 +124,9 @@ func (c *Create) command(dst []byte, desc description.SelectedServer) ([]byte, e
 	}
 	if c.timeSeries != nil {
 		dst = bsoncore.AppendDocumentElement(dst, "timeseries", c.timeSeries)
+	}
+	if c.encryptedFields != nil {
+		dst = bsoncore.AppendDocumentElement(dst, "encryptedFields", c.encryptedFields)
 	}
 	return dst, nil
 }
@@ -355,5 +359,15 @@ func (c *Create) TimeSeries(timeSeries bsoncore.Document) *Create {
 	}
 
 	c.timeSeries = timeSeries
+	return c
+}
+
+// EncryptedFields sets the EncryptedFields for this operation.
+func (c *Create) EncryptedFields(efc bsoncore.Document) *Create {
+	if c == nil {
+		c = new(Create)
+	}
+
+	c.encryptedFields = efc
 	return c
 }
