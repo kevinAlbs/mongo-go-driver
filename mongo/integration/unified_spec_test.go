@@ -59,14 +59,15 @@ var (
 )
 
 type testFile struct {
-	RunOn          []mtest.RunOnBlock `bson:"runOn"`
-	DatabaseName   string             `bson:"database_name"`
-	CollectionName string             `bson:"collection_name"`
-	BucketName     string             `bson:"bucket_name"`
-	Data           testData           `bson:"data"`
-	JSONSchema     bson.Raw           `bson:"json_schema"`
-	KeyVaultData   []bson.Raw         `bson:"key_vault_data"`
-	Tests          []*testCase        `bson:"tests"`
+	RunOn           []mtest.RunOnBlock `bson:"runOn"`
+	DatabaseName    string             `bson:"database_name"`
+	CollectionName  string             `bson:"collection_name"`
+	BucketName      string             `bson:"bucket_name"`
+	Data            testData           `bson:"data"`
+	JSONSchema      bson.Raw           `bson:"json_schema"`
+	KeyVaultData    []bson.Raw         `bson:"key_vault_data"`
+	Tests           []*testCase        `bson:"tests"`
+	EncryptedFields bson.Raw           `bson:"encrypted_fields"`
 }
 
 type testData struct {
@@ -260,6 +261,15 @@ func runSpecTestCase(mt *mtest.T, test *testCase, testFile testFile) {
 		// been created and the collection drop in mongotest will hang for transactions to be aborted (60 seconds)
 		// in error cases.
 		defer killSessions(mt)
+		if len(testFile.EncryptedFields) > 0 {
+			/* TODO: Remove this if block. Update T.createTestCollection to use CreateCollection. */
+			fmt.Println("Test has encrypted_fields: dropping and recreating collection with EncryptedFields.")
+			db := mt.Client.Database(testFile.DatabaseName)
+			err := db.Collection(testFile.CollectionName).Drop(context.TODO(), options.DropCollection().SetEncryptedFields(testFile.EncryptedFields))
+			assert.Nil(mt, err, "Error in Drop: %v", err)
+			db.CreateCollection(context.TODO(), testFile.CollectionName, options.CreateCollection().SetEncryptedFields(testFile.EncryptedFields))
+			assert.Nil(mt, err, "Error in CreateCollection: %v", err)
+		}
 
 		// Test setup: create collections that are tracked by mtest, insert test data, and set the failpoint.
 		setupTest(mt, &testFile, test)
