@@ -800,6 +800,11 @@ func (c *Client) configureCryptFLE(opts *options.AutoEncryptionOptions) error {
 		cir = collInfoRetriever{client: c.metadataClientFLE}
 	}
 
+	var bypassQueryAnalysis bool
+	if opts.BypassQueryAnalysis != nil {
+		bypassQueryAnalysis = *opts.BypassQueryAnalysis
+	}
+
 	cryptOpts := &driver.CryptOptions{
 		CollInfoFn:           cir.cryptCollInfo,
 		KeyFn:                kr.cryptKeys,
@@ -808,6 +813,7 @@ func (c *Client) configureCryptFLE(opts *options.AutoEncryptionOptions) error {
 		TLSConfig:            opts.TLSConfig,
 		BypassAutoEncryption: bypass,
 		SchemaMap:            cryptSchemaMap,
+		BypassQueryAnalysis:  bypassQueryAnalysis,
 	}
 
 	c.cryptFLE, err = driver.NewCrypt(cryptOpts)
