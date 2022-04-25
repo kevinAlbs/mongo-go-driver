@@ -267,7 +267,7 @@ func runSpecTestCase(mt *mtest.T, test *testCase, testFile testFile) {
 			db := mt.Client.Database(testFile.DatabaseName)
 			err := db.Collection(testFile.CollectionName).Drop(context.TODO(), options.DropCollection().SetEncryptedFields(testFile.EncryptedFields))
 			assert.Nil(mt, err, "Error in Drop: %v", err)
-			db.CreateCollection(context.TODO(), testFile.CollectionName, options.CreateCollection().SetEncryptedFields(testFile.EncryptedFields))
+			err = db.CreateCollection(context.TODO(), testFile.CollectionName, options.CreateCollection().SetEncryptedFields(testFile.EncryptedFields))
 			assert.Nil(mt, err, "Error in CreateCollection: %v", err)
 		}
 
