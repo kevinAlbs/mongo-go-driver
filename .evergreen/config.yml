@@ -88,13 +88,13 @@ functions:
           if [ "Windows_NT" = "$OS" ]; then
              mkdir -p c:/libmongocrypt/include
              mkdir -p c:/libmongocrypt/bin
-             curl https://s3.amazonaws.com/mciuploads/libmongocrypt/windows/latest_release/libmongocrypt.tar.gz --output libmongocrypt.tar.gz
-             tar -xvzf libmongocrypt.tar.gz
-             cp ./bin/mongocrypt.dll c:/libmongocrypt/bin
-             cp ./include/mongocrypt/*.h c:/libmongocrypt/include
+             git clone https://github.com/kevinAlbs/libmongocrypt --branch wip-fixes
+             ./libmongocrypt/.evergreen/compile.sh
+             cp ./install/libmongocrypt/bin/mongocrypt.dll c:/libmongocrypt/bin
+             cp ./install/libmongocrypt/include/mongocrypt/*.h c:/libmongocrypt/include
              export PATH=$PATH:/cygdrive/c/libmongocrypt/bin
           else
-            git clone https://github.com/mongodb/libmongocrypt
+            git clone https://github.com/kevinAlbs/libmongocrypt --branch wip-fixes
             ./libmongocrypt/.evergreen/compile.sh
           fi
 
