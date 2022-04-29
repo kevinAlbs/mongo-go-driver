@@ -1,5 +1,7 @@
 runOn:
   - minServerVersion: "6.0.0"
+    # FLE 2 Encrypted collections are not supported on standalone.
+    topology: [ "replicaset", "sharded" ]
 database_name: &database_name "default"
 collection_name: &collection_name "default"
 data: [
@@ -27,7 +29,6 @@ tests:
         result:
           [{ "_id": 1, "encryptedUnindexed": "value123" }]
     expectations:
-      # Auto encryption will request the collection info.
       - command_started_event:
           command:
             listCollections: 1
