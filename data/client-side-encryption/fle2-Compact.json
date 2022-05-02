@@ -1,7 +1,11 @@
 {
   "runOn": [
     {
-      "minServerVersion": "6.0.0"
+      "minServerVersion": "6.0.0",
+      "topologies": [
+        "replicaset",
+        "sharded"
+      ]
     }
   ],
   "database_name": "default",
@@ -193,6 +197,24 @@
               }
             },
             "command_name": "compactStructuredEncryptionData"
+          }
+        }
+      ]
+    },
+    {
+      "description": "Compact errors on an unencrypted client",
+      "operations": [
+        {
+          "name": "runCommand",
+          "object": "database",
+          "command_name": "compactStructuredEncryptionData",
+          "arguments": {
+            "command": {
+              "compactStructuredEncryptionData": "default"
+            }
+          },
+          "result": {
+            "errorContains": "'compactStructuredEncryptionData.compactionTokens' is missing"
           }
         }
       ]

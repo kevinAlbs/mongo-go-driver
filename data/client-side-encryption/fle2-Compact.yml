@@ -1,5 +1,6 @@
 runOn:
   - minServerVersion: "6.0.0"
+    topologies: [ "replicaset", "sharded" ]
 database_name: &database_name "default"
 collection_name: &collection_name "default"
 data: []
@@ -65,3 +66,13 @@ tests:
               }
             }
           command_name: compactStructuredEncryptionData
+  - description: "Compact errors on an unencrypted client"
+    operations:
+      - name: runCommand
+        object: database
+        command_name: compactStructuredEncryptionData
+        arguments:
+          command:
+            compactStructuredEncryptionData: *collection_name
+        result:
+          errorContains: "'compactStructuredEncryptionData.compactionTokens' is missing"
