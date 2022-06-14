@@ -327,7 +327,29 @@ func TestClientSideEncryptionProse(t *testing.T) {
 					assert.Equal(mt, gotValue.StringValue(), valueToEncrypt, "expected %q, got %q", valueToEncrypt, gotValue.StringValue())
 					gotValue, err = doc.LookupErr("_id")
 					assert.Nil(mt, err, "error in LookupErr: %v", err)
-					assert.Equal(mt, gotValue.Int32(), 2, "expected %v, got %v", 1, gotValue.Int32())
+					assert.Equal(mt, gotValue.Int32(), int32(2), "expected 2, got %v", gotValue.Int32())
+				}
+			}
+
+			// Try to find with the incorrect IndexKeyID.
+			{
+				eo := options.Encrypt().SetAlgorithm("Indexed").SetKeyID(key1ID).SetIndexKeyID(key2ID).SetQueryType(options.QueryTypeEquality)
+				findPayload, err := clientEncryption.Encrypt(context.Background(), rawVal, eo)
+				assert.Nil(mt, err, "error in Encrypt: %v", err)
+				coll := encryptedClient.Database("db").Collection("explicit_encryption")
+				cursor, err := coll.Find(context.Background(), bson.D{{"encryptedIndexed", findPayload}})
+				assert.Nil(mt, err, "error in Find: %v", err)
+				var got []bson.Raw
+				err = cursor.All(context.Background(), &got)
+				assert.Nil(mt, err, "error in All: %v", err)
+				assert.True(mt, len(got) == 1, "expected len(got) == 1, got: %v", len(got))
+				for _, doc := range got {
+					gotValue, err := doc.LookupErr("encryptedIndexed")
+					assert.Nil(mt, err, "error in LookupErr: %v", err)
+					assert.Equal(mt, gotValue.StringValue(), valueToEncrypt, "expected %q, got %q", valueToEncrypt, gotValue.StringValue())
+					gotValue, err = doc.LookupErr("_id")
+					assert.Nil(mt, err, "error in LookupErr: %v", err)
+					assert.Equal(mt, gotValue.Int32(), int32(1), "expected %v, got %v", 1, gotValue.Int32())
 				}
 			}
 		})
@@ -428,7 +450,8 @@ func TestClientSideEncryptionProse(t *testing.T) {
 					findKeyID:        key2ID,
 					expectFound:      1,
 					expectFindError:  "",
-					// key2ID does not match encryptedFields.
+					// Expect an error because key2ID does not match key1ID in server encryptedFields.
+					// Example error: write exception: write errors: [Invalid advance (5391210624386066) past end of buffer[188] at offset: 8]
 					expectDeleteError: "Invalid advance",
 				},
 				{
@@ -459,12 +482,14 @@ func TestClientSideEncryptionProse(t *testing.T) {
 					expectDeleteError: "",
 				},
 				{
-					desc:              "Insert(2,2) Find(2)",
-					insertKeyID:       key2ID,
-					insertIndexKeyID:  key2ID,
-					findKeyID:         key2ID,
-					expectFound:       1,
-					expectFindError:   "",
+					desc:             "Insert(2,2) Find(2)",
+					insertKeyID:      key2ID,
+					insertIndexKeyID: key2ID,
+					findKeyID:        key2ID,
+					expectFound:      1,
+					expectFindError:  "",
+					// Expect an error because key2ID does not match key1ID in server encryptedFields.
+					// Example error: write exception: write errors: [Invalid advance (5391210624386066) past end of buffer[188] at offset: 8]
 					expectDeleteError: "Invalid advance",
 				},
 			}
