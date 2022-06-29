@@ -11,6 +11,7 @@ package integration
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -594,6 +595,40 @@ func TestFLE2DocsExample(t *testing.T) {
 			assert.Equal(mt, val.Type, bsontype.Binary, "expected encryptedIndexed to be Binary, got %v", val.Type)
 			val = resBSON.Lookup("encryptedUnindexed")
 			assert.Equal(mt, val.Type, bsontype.Binary, "expected encryptedUnindexed to be Binary, got %v", val.Type)
+		}
+
+		// Encrypt aggregate.
+		{
+			cursor, err := encryptedColl.Aggregate(context.Background(), []bson.M{{
+				"$match": bson.M{"encryptedIndexed": "indexedValue"},
+			}})
+			assert.Nil(mt, err, "error in Aggregate: %v", err)
+			var got []bson.M
+			err = cursor.All(context.Background(), &got)
+			assert.Nil(mt, err, "error in cursor.All: %v", err)
+			assert.Equal(mt, got[0]["encryptedIndexed"], "indexedValue", "expected 'indexedValue', got %q", got[0]["encryptedIndexed"])
+			assert.Equal(mt, got[0]["encryptedUnindexed"], "unindexedValue", "expected 'unindexedValue', got %q", got[0]["encryptedUnindexed"])
+		}
+
+		// Encrypt distinct.
+		{
+			_, err := encryptedColl.Distinct(context.Background(), "_id", bson.M{"encryptedIndexed": "indexedValue"})
+			assert.True(mt, strings.Contains(err.Error(), "BSON field 'distinct.encryptionInformation' is an unknown field"), "expected mongocryptd error, got: %v", err)
+		}
+
+		// Encrypt count.
+		{
+			res := encryptedColl.Database().RunCommand(context.Background(),
+				bson.D{
+					{"count", "encrypted"},
+					{"query", bson.M{"encryptedIndexed": "indexedValue"}},
+				},
+			)
+			assert.Nil(mt, res.Err(), "error in count: %v", res.Err())
+			var resBSON bson.M
+			err := res.Decode(&resBSON)
+			assert.Nil(mt, err, "error in Decode: %v", err)
+			assert.Equal(mt, resBSON["n"].(int32), int32(1), "expected 1 document in count, got %v", resBSON["n"])
 		}
 	})
 }
