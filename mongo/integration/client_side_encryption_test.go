@@ -597,3 +597,122 @@ func TestFLE2DocsExample(t *testing.T) {
 		}
 	})
 }
+
+func TestRewrap(t *testing.T) {
+	mtOpts := mtest.NewOptions().
+		MinServerVersion("6.0").
+		Enterprise(true).
+		CreateClient(false).
+		Topologies(mtest.ReplicaSet,
+			mtest.Sharded,
+			mtest.LoadBalanced,
+			mtest.ShardedReplicaSet)
+	mt := mtest.New(t, mtOpts)
+	defer mt.Close()
+
+	kmsProvidersMap := map[string]map[string]interface{}{
+		"local": {"key": localMasterKey},
+		"aws": {
+			"accessKeyId":     awsAccessKeyID,
+			"secretAccessKey": awsSecretAccessKey,
+		},
+		"azure": {
+			"tenantId":     azureTenantID,
+			"clientId":     azureClientID,
+			"clientSecret": azureClientSecret,
+		},
+		"gcp": {
+			"email":      gcpEmail,
+			"privateKey": gcpPrivateKey,
+		},
+	}
+
+	mt.Run("Encrypt, Rewrap, and Decrypt", func(mt *mtest.T) {
+		var err error
+
+		// Drop data from prior test runs.
+		{
+			err := mt.Client.Database("keyvault").Collection("datakeys").Drop(context.Background())
+			assert.Nil(mt, err, "error in Drop: %v", err)
+		}
+
+		// Create ClientEncryption
+		var ce *mongo.ClientEncryption
+		{
+			cOpts := options.Client().ApplyURI(mtest.ClusterURI())
+			testutil.AddTestServerAPIVersion(cOpts)
+			keyVaultClient, err := mongo.Connect(context.Background(), cOpts)
+			assert.Nil(mt, err, "error in Connect: %v", err)
+			defer keyVaultClient.Disconnect(context.Background())
+			ceOpts := options.ClientEncryption().SetKmsProviders(kmsProvidersMap).SetKeyVaultNamespace("keyvault.datakeys")
+			ce, err = mongo.NewClientEncryption(keyVaultClient, ceOpts)
+			assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
+		}
+
+		// Create a data key.
+		var keyID primitive.Binary
+		{
+			defer ce.Close(context.Background())
+			dkOpts := options.DataKey()
+			dkOpts.SetMasterKey(bson.M{
+				"region": "us-east-1",
+				"key":    "arn:aws:kms:us-east-1:579766882180:key/89fcc2c4-08b0-4bd9-9f25-e30687b580d0",
+			})
+			keyID, err = ce.CreateDataKey(context.Background(), "aws", dkOpts)
+			assert.Nil(mt, err, "error in CreateDataKey: %v", err)
+		}
+
+		// Encrypt.
+		var ciphertext primitive.Binary
+		{
+			eOpts := options.Encrypt().
+				SetAlgorithm("AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic").
+				SetKeyID(keyID)
+			plaintext := bson.RawValue{Type: bsontype.String, Value: bsoncore.AppendString(nil, "test")}
+			ciphertext, err = ce.Encrypt(context.Background(), plaintext, eOpts)
+			assert.Nil(mt, err, "error in Encrypt: %v", err)
+		}
+
+		// Rewrap.
+		{
+			rwOpts := options.RewrapManyDataKey()
+			rwOpts.SetProvider("gcp")
+			rwOpts.SetMasterKey(bson.M{
+				"projectId": "devprod-drivers",
+				"location":  "global",
+				"keyRing":   "key-ring-csfle",
+				"keyName":   "key-name-csfle",
+			})
+			result, err := ce.RewrapManyDataKey(context.Background(), bson.D{{"_id", keyID}}, rwOpts)
+			assert.Nil(mt, err, "error in RewrapManyDataKey: %v", err)
+			assert.Equal(mt, result.ModifiedCount, int64(1), "expected ModifiedCount==1, got: %v", result.ModifiedCount)
+		}
+
+		// Decrypt.
+		{
+			plaintext, err := ce.Decrypt(context.Background(), ciphertext)
+			assert.Nil(mt, err, "error in Decrypt: %v", err)
+			assert.Equal(mt, plaintext.StringValue(), "test", "expected 'test', got %v", plaintext.StringValue())
+		}
+
+		// Try using a new ClientEncryption to decrypt. The DEK will not be cached.
+		var ce2 *mongo.ClientEncryption
+		{
+			cOpts := options.Client().ApplyURI(mtest.ClusterURI())
+			testutil.AddTestServerAPIVersion(cOpts)
+			keyVaultClient, err := mongo.Connect(context.Background(), cOpts)
+			assert.Nil(mt, err, "error in Connect: %v", err)
+			defer keyVaultClient.Disconnect(context.Background())
+			ceOpts := options.ClientEncryption().SetKmsProviders(kmsProvidersMap).SetKeyVaultNamespace("keyvault.datakeys")
+			ce2, err = mongo.NewClientEncryption(keyVaultClient, ceOpts)
+			assert.Nil(mt, err, "error in NewClientEncryption: %v", err)
+		}
+
+		// Decrypt.
+		{
+			plaintext, err := ce2.Decrypt(context.Background(), ciphertext)
+			assert.Nil(mt, err, "error in Decrypt: %v", err)
+			assert.Equal(mt, plaintext.StringValue(), "test", "expected 'test', got %v", plaintext.StringValue())
+		}
+	})
+}
