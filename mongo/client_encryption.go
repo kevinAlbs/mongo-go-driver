@@ -161,7 +161,14 @@ func (ce *ClientEncryption) AddKeysToEncryptedCollectionOptions(ctx context.Cont
 // CreateEncryptedCollection creates a collection using @db with name @name.
 // For any nil CreateEncryptedCollectionOptions.Fields.KeyID, a new key is created with @kmsProvider and @dkopts.
 // Returns a new EncryptedFieldConfig. The EncryptedFieldConfig will apply default KeyIDs and collection names.
-func (ce *ClientEncryption) CreateEncryptedCollection(ctx context.Context, db *Database, name string, kmsProvider string, kek interface{}, efc *options.EncryptedFieldConfig, opts ...*options.CreateCollectionOptions) (options.EncryptedFieldConfig, error) {
+func (ce *ClientEncryption) CreateEncryptedCollection(
+	ctx context.Context,
+	db *Database,
+	name string,
+	kmsProvider string,
+	kek interface{},
+	efc *options.EncryptedFieldConfig,
+	opts ...*options.CreateCollectionOptions) (options.EncryptedFieldConfig, error) {
 	copiedEfc := *efc
 
 	copiedEfc.ESCCollection = getOrDefault(name, efc.ESCCollection, "esc")
