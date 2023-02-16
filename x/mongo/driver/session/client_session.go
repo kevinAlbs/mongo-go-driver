@@ -121,6 +121,7 @@ type Client struct {
 	RetryWrite     bool
 	RetryRead      bool
 	Snapshot       bool
+	InUse          bool // Is this session in use by an operation?
 
 	// options for the current transaction
 	// most recently set by transactionopt

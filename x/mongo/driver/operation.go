@@ -386,6 +386,16 @@ func (op Operation) Execute(ctx context.Context) error {
 		return err
 	}
 
+	if op.Client != nil {
+		if op.Client.InUse {
+			return fmt.Errorf("Session with ID %v is unexpectedly in use. Sessions do not support concurrent use", op.Client.SessionID)
+		}
+		op.Client.InUse = true
+		defer func() {
+			op.Client.InUse = false
+		}()
+	}
+
 	// If no deadline is set on the passed-in context, op.Timeout is set, and context is not already
 	// a Timeout context, honor op.Timeout in new Timeout context for operation execution.
 	if _, deadlineSet := ctx.Deadline(); !deadlineSet && op.Timeout != nil && !internal.IsTimeoutContext(ctx) {
