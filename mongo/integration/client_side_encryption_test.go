@@ -609,6 +609,22 @@ func TestFLE2DocsExample(t *testing.T) {
 	})
 }
 
+/*
+
+Run this test as follows:
+
+Download libmongocrypt 1.7.0 or newer. Use `brew install mongodb/brew/libmongocrypt` on macOS.
+Download crypt_shared 6.0.4 from: https://www.mongodb.com/download-center/enterprise/releases
+Set the `CRYPT_SHARED_LIB_PATH` environment variable to the path to crypt_shared: `export CRYPT_SHARED_LIB_PATH="/Users/kevin.albertson/bin/mongodl/crypt_shared/6.0.4/lib/mongo_crypt_v1.dylib"``
+Run the test with this command: `go test -v -tags cse -count=1 ./mongo/integration -run TestMONGOCRYPT556`
+
+With crypt_shared 6.0.4, an unexpected invariant occurs:
+```
+{"t":{"$date":"2023-03-13T18:32:06.057Z"},"s":"I",  "c":"NETWORK",  "id":4648602, "ctx":"thread2","msg":"Implicit TCP FastOpen in use."}
+{"t":{"$date":"2023-03-13T18:32:06.065Z"},"s":"F",  "c":"ASSERT",   "id":23079,   "ctx":"thread3","msg":"Invariant failure","attr":{"expr":"isVersionInitialized()","file":"src/mongo/db/server_options.h","line":156}}
+```
+With crypt_shared latest, an expected error is returned: `error: mongocrypt error 1: csfle "analyze_query" failed: Pipeline over an encrypted collection cannot reference additional collections. [Error 2, code 51204]`.
+*/
 func TestMONGOCRYPT556(t *testing.T) {
 	mtOpts := mtest.NewOptions().
 		MinServerVersion("4.2").
