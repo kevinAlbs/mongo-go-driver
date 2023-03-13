@@ -11,6 +11,8 @@ package integration
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -604,5 +606,127 @@ func TestFLE2DocsExample(t *testing.T) {
 			val = resBSON.Lookup("encryptedUnindexed")
 			assert.Equal(mt, val.Type, bsontype.Binary, "expected encryptedUnindexed to be Binary, got %v", val.Type)
 		}
+	})
+}
+
+func TestMONGOCRYPT556(t *testing.T) {
+	mtOpts := mtest.NewOptions().
+		MinServerVersion("4.2").
+		Enterprise(true).
+		CreateClient(false)
+	mt := mtest.New(t, mtOpts)
+	defer mt.Close()
+
+	mt.Run("MONGOCRYPT-556", func(mt *mtest.T) {
+		// Drop data from prior test runs.
+		{
+			err := mt.Client.Database("keyvault").Collection("datakeys").Drop(context.Background())
+			assert.Nil(mt, err, "error in Drop: %v", err)
+			err = mt.Client.Database("db").Drop(context.Background())
+			assert.Nil(mt, err, "error in Drop: %v", err)
+		}
+
+		kmsProvidersMap := map[string]map[string]interface{}{
+			"local": {"key": localMasterKey},
+		}
+
+		// Create a client configured for auto encryption.
+		var encryptedColl *mongo.Collection
+		{
+			cOpts := options.Client().ApplyURI(mtest.ClusterURI())
+			testutil.AddTestServerAPIVersion(cOpts)
+			cryptSharedLibPath := os.Getenv("CRYPT_SHARED_LIB_PATH")
+			assert.NotEqual(mt, "", cryptSharedLibPath, "expected CRYPT_SHARED_LIB_PATH to be set")
+			extraOpts := map[string]interface{}{
+				"cryptSharedLibPath": cryptSharedLibPath,
+			}
+			aeOpts := options.AutoEncryption().SetKmsProviders(kmsProvidersMap).SetKeyVaultNamespace("keyvault.datakeys").SetExtraOptions(extraOpts)
+			cOpts.SetAutoEncryptionOptions(aeOpts)
+			encryptedClient, err := mongo.Connect(context.Background(), cOpts)
+			defer encryptedClient.Disconnect(context.Background())
+			assert.Nil(mt, err, "error in Connect: %v", err)
+			db := encryptedClient.Database("db")
+			encryptedColl = db.Collection("encrypted")
+		}
+
+		// Auto encrypt an aggregate.
+		{
+			var pipeline bson.A
+			err := bson.UnmarshalExtJSON(
+				([]byte)(`
+				[
+					{
+					  "$match": {
+						"Timestamp": {
+						  "$gte": "ISODate(2023-02-20T14:40:00Z)"
+						}
+					  }
+					},
+					{
+					  "$lookup": {
+						"from": "RemoteCommandResults",
+						"localField": "_id",
+						"foreignField": "CommandId",
+						"as": "Results"
+					  }
+					},
+					{
+					  "$project": {
+						"_id": "$_id",
+						"Command": "$Command",
+						"CommandType": "$CommandType",
+						"Timestamp": "$Timestamp",
+						"ClientIpAddress": "$ClientIpAddress",
+						"Location": "$Location",
+						"SubmittedByUser": "$SubmittedByUser",
+						"CompletedEndpoints": {
+						  "$map": {
+							"input": {
+							  "$filter": {
+								"input": "$Results",
+								"as": "r",
+								"cond": {
+								  "$ne": [
+									"$$r.WhenCompleted",
+									null
+								  ]
+								}
+							  }
+							},
+							"as": "r",
+							"in": "$$r.EndpointId"
+						  }
+						},
+						"PendingEndpoints": {
+						  "$map": {
+							"input": {
+							  "$filter": {
+								"input": "$Results",
+								"as": "r",
+								"cond": {
+								  "$not": {
+									"$ne": [
+									  "$$r.WhenCompleted",
+									  null
+									]
+								  }
+								}
+							  }
+							},
+							"as": "r",
+							"in": "$$r.EndpointId"
+						  }
+						}
+					  }
+					}
+				  ]
+				`), true, &pipeline)
+			assert.Nil(mt, err, "error in UnmarshalExtJSON: %v", err)
+
+			_, err = encryptedColl.Aggregate(context.Background(), pipeline)
+			assert.NotNil(mt, err, "Expected error, got none")
+			fmt.Printf("error: %v", err)
+		}
+
 	})
 }
