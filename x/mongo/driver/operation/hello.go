@@ -290,7 +290,7 @@ func appendClientDriver(dst []byte) ([]byte, error) {
 // appendClientEnv appends the environment metadata to dst.
 // After calling, callers must check that `dst` does not
 // exceed the maximum size of the `client` metadata before sending `hello`.
-func appendClientEnv(dst []byte) ([]byte, error) {
+func appendClientEnv(dst []byte, omitEnvFields bool) ([]byte, error) {
 	if dst == nil {
 		return dst, nil
 	}
@@ -352,17 +352,19 @@ func appendClientEnv(dst []byte) ([]byte, error) {
 	idx, dst := bsoncore.AppendDocumentElementStart(dst, "env")
 	dst = bsoncore.AppendStringElement(dst, "name", name)
 
-	switch name {
-	case envNameAWSLambda:
-		dst = addMem(envVarAWSLambdaFunctionMemorySize)
-		dst = addRegion(envVarAWSRegion)
-	case envNameGCPFunc:
-		dst = addMem(envVarFunctionMemoryMB)
-		dst = addRegion(envVarFunctionRegion)
-		dst = addTimeout(envVarFunctionTimeoutSec)
-	case envNameVercel:
-		dst = addRegion(envVarVercelRegion)
-		dst = addURL(envVarVercelURL)
+	if !omitEnvFields {
+		switch name {
+		case envNameAWSLambda:
+			dst = addMem(envVarAWSLambdaFunctionMemorySize)
+			dst = addRegion(envVarAWSRegion)
+		case envNameGCPFunc:
+			dst = addMem(envVarFunctionMemoryMB)
+			dst = addRegion(envVarFunctionRegion)
+			dst = addTimeout(envVarFunctionTimeoutSec)
+		case envNameVercel:
+			dst = addRegion(envVarVercelRegion)
+			dst = addURL(envVarVercelURL)
+		}
 	}
 
 	return bsoncore.AppendDocumentEnd(dst, idx)
@@ -371,10 +373,12 @@ func appendClientEnv(dst []byte) ([]byte, error) {
 // appendClientOS appends the OS metadata to dst.
 // After calling, callers must check that `dst` does not
 // exceed the maximum size of the `client` metadata before sending `hello`.
-func appendClientOS(dst []byte) ([]byte, error) {
+func appendClientOS(dst []byte, omitOSFields bool) ([]byte, error) {
 	idx, dst := bsoncore.AppendDocumentElementStart(dst, "os")
 	dst = bsoncore.AppendStringElement(dst, "type", runtime.GOOS)
-	dst = bsoncore.AppendStringElement(dst, "architecture", runtime.GOARCH)
+	if !omitOSFields {
+		dst = bsoncore.AppendStringElement(dst, "architecture", runtime.GOARCH)
+	}
 	dst, err := bsoncore.AppendDocumentEnd(dst, idx)
 	return dst, err
 }
@@ -420,6 +424,13 @@ func appendClientPlatform(dst []byte) []byte {
 func encodeClientMetadata(appname string, maxLen int) ([]byte, error) {
 	dst := make([]byte, 0, maxLen)
 
+	omitEnvFields := false
+	omitOSFields := false
+	omitEnvDocument := false
+	truncatePlatform := false
+
+retry:
+
 	idx, dst := bsoncore.AppendDocumentStart(dst)
 
 	var err error
@@ -433,16 +444,20 @@ func encodeClientMetadata(appname string, maxLen int) ([]byte, error) {
 		return dst, err
 	}
 
-	dst, err = appendClientOS(dst)
+	dst, err = appendClientOS(dst, omitOSFields)
 	if err != nil {
 		return dst, err
 	}
 
-	dst = appendClientPlatform(dst)
+	if !truncatePlatform {
+		dst = appendClientPlatform(dst)
+	}
 
-	dst, err = appendClientEnv(dst)
-	if err != nil {
-		return dst, err
+	if !omitEnvDocument {
+		dst, err = appendClientEnv(dst, omitEnvFields)
+		if err != nil {
+			return dst, err
+		}
 	}
 
 	dst, err = bsoncore.AppendDocumentEnd(dst, idx)
@@ -450,10 +465,40 @@ func encodeClientMetadata(appname string, maxLen int) ([]byte, error) {
 		return dst, err
 	}
 
-	// If the final "dst" slice is somehow greater than the maximum length,
-	// then return an empty slice. This should never happen, but the server
-	// may error if the document exceeds the maximum length.
 	if len(dst) > maxLen {
+		// The final "dst" slice is greater than the maximum length. Retry following guidance from the Handshake specification:
+		// """
+		//    Implementors SHOULD cumulatively update fields in
+		//    the following order until the document is under the size limit
+		//    1. Omit fields from ``env`` except ``env.name``.
+		//    2. Omit fields from ``os`` except ``os.type``.
+		//    3. Omit the ``env`` document entirely.
+		//    4. Truncate ``platform``.
+		// """
+		dst = dst[:0]
+
+		if !omitEnvFields {
+			omitEnvFields = true
+			goto retry
+		}
+
+		if !omitOSFields {
+			omitOSFields = true
+			goto retry
+		}
+
+		if !omitEnvDocument {
+			omitEnvDocument = true
+			goto retry
+		}
+
+		if !truncatePlatform {
+			truncatePlatform = true
+			goto retry
+		}
+
+		// There is nothing left to update.
+		// Return an empty slice to tell caller not to append a `client` document.
 		return dst[:0], nil
 	}
 
