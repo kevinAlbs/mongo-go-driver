@@ -1,11 +1,13 @@
 package operation
 
 import (
+	"runtime"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/internal/assert"
 	"go.mongodb.org/mongo-driver/internal/require"
+	"go.mongodb.org/mongo-driver/version"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 )
 
@@ -108,37 +110,106 @@ func BenchmarkClientMetadata(b *testing.B) {
 	})
 }
 
-func FuzzEncodeClientMetadata(f *testing.F) {
-	f.Fuzz(func(t *testing.T, b []byte, appname string) {
-		if len(b) > maxClientMetadataSize {
-			return
-		}
 
-		_, err := encodeClientMetadata(appname, maxClientMetadataSize)
-		if err != nil {
-			t.Fatalf("error appending client: %v", err)
-		}
+func clearEnv(t *testing.T) {
+	t.Setenv(envVarAWSExecutionEnv, "")
+	t.Setenv(envVarAWSLambdaRuntimeAPI, "")
+	t.Setenv(envVarFunctionsWorkerRuntime, "")
+	t.Setenv(envVarKService, "")
+	t.Setenv(envVarFunctionName, "")
+	t.Setenv(envVarVercel, "")
+	t.Setenv(envVarAWSRegion, "")
+	t.Setenv(envVarAWSLambdaFunctionMemorySize, "")
+	t.Setenv(envVarFunctionMemoryMB, "")
+	t.Setenv(envVarFunctionTimeoutSec, "")
+	t.Setenv(envVarFunctionRegion, "")
+	t.Setenv(envVarVercelURL, "")
+	t.Setenv(envVarVercelRegion, "")
+}
 
-		_, err = appendClientAppName(b, appname)
-		if err != nil {
-			t.Fatalf("error appending client app name: %v", err)
-		}
+func TestEncodeClientMetadata(t *testing.T) {
+	// Clear environment variables that influence handshake.
+	clearEnv(t)
 
-		_, err = appendClientDriver(b)
-		if err != nil {
-			t.Fatalf("error appending client driver: %v", err)
-		}
+	// Set environment variables to add `env` field to handshake.
+	t.Setenv(envVarAWSLambdaRuntimeAPI, "lambda")
+	t.Setenv(envVarAWSLambdaFunctionMemorySize, "123")
+	t.Setenv(envVarAWSRegion, "region")
 
-		_, err = appendClientEnv(b)
-		if err != nil {
-			t.Fatalf("error appending client env: %v", err)
-		}
+	// Test that nothing is omitted.
+	{
+		got, err := encodeClientMetadata("foo", 512)
+		assert.Nil(t, err, "error in encodeClientMetadata: %v", err)
 
-		_, err = appendClientOS(b)
-		if err != nil {
-			t.Fatalf("error appending client os: %v", err)
+		expectD := bson.D{
+			{"application", bson.D{
+				{"name", "foo"},
+			}},
+			{"driver", bson.D{
+				{"name", driverName},
+				{"version", version.Driver},
+			}},
+			{"os", bson.D{
+				{"type", runtime.GOOS},
+				{"architecture", runtime.GOARCH},
+			}},
+			{"platform", runtime.Version()},
+			{"env", bson.D{
+				{"name", "aws.lambda"},
+				{"memory_mb", 123},
+				{"region", "region"},
+			}},
 		}
+		expect, err := bson.Marshal(expectD)
+		assert.Nil(t, err, "error in Marshal: %v", err)
+		assert.Equal(t, expect, got, "expected: %s, but got %s", bson.Raw(expect), bson.Raw(got))
+	}
 
-		appendClientPlatform(b)
-	})
+	// Test that fields from `env`` are omitted first.
+	{
+		// Reduce max size to 225.
+		got, err := encodeClientMetadata("foo", 225)
+		assert.Nil(t, err, "error in encodeClientMetadata: %v", err)
+
+		expectD := bson.D{
+			{"application", bson.D{
+				{"name", "foo"},
+			}},
+			{"driver", bson.D{
+				{"name", driverName},
+				{"version", version.Driver},
+			}},
+			{"os", bson.D{
+				{"type", runtime.GOOS},
+				{"architecture", runtime.GOARCH},
+			}},
+			{"platform", runtime.Version()},
+			{"env", bson.D{
+				{"name", "aws.lambda"},
+			}},
+		}
+		expect, err := bson.Marshal(expectD)
+		assert.Nil(t, err, "error in Marshal: %v", err)
+		assert.Equal(t, expect, got, "expected: %s, but got %s", bson.Raw(expect), bson.Raw(got))
+	}
+
+	// Test that entire env document is omitted next.
+	{
+		// TODO.
+	}
+
+	// Test that fields from os are omitted next.
+	{
+		// TODO.
+	}
+
+	// Test that platform is truncated next.
+	{
+		// TODO.
+	}
+
+	// Test that empty slice is returned last.
+	{
+		// TODO.
+	}
 }
