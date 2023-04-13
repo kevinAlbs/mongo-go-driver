@@ -204,68 +204,6 @@ func getFaasEnvName() string {
 	return ""
 }
 
-// appendWithMaxLen appends the "dst" slice using the provided function. If the
-// length of the resulting slice is greater than maxLen, the original slice is
-// returned. Otherwise, the new slice is returned.
-func appendWithMaxLen(dst []byte, maxLen int, fn func([]byte) []byte) []byte {
-	origLen := len(dst)
-
-	dst = fn(dst)
-	if len(dst) > maxLen {
-		return dst[:origLen]
-	}
-
-	return dst
-}
-
-func appendSubDocument(dst []byte, maxLen int, key string, fns []func([]byte) []byte) ([]byte, error) {
-	if dst == nil || maxLen <= 0 || len(fns) == 0 {
-		return dst, nil
-	}
-
-	bytesLeft := maxLen - 1 // -1 for the null byte to end the sub doc.
-	originalLen := len(dst)
-
-	var idx int32
-	dst = appendWithMaxLen(dst, bytesLeft, func(dst []byte) []byte {
-		idx, dst = bsoncore.AppendDocumentElementStart(dst, key)
-
-		return dst
-	})
-
-	// If the sub-document is too large then continuing will corrupt the
-	// document so return the original slice.
-	if len(dst) == originalLen {
-		return dst, nil
-	}
-
-	emptySize := len(dst) // Size of the sub-document if it is empty.
-
-	for _, fn := range fns {
-		if fn == nil {
-			continue
-		}
-
-		dst = appendWithMaxLen(dst, bytesLeft, fn)
-	}
-
-	// If the driver sub doc is empty, truncate and return the original
-	// slice.
-	if len(dst) == emptySize {
-		return dst[:originalLen], nil
-	}
-
-	var err error
-
-	// End the driver sub-document.
-	dst, err = bsoncore.AppendDocumentEnd(dst, idx)
-	if err != nil {
-		return dst, err
-	}
-
-	return dst, nil
-}
-
 // appendClientAppName appends the application name to dst.
 // After calling, callers must check that `dst` does not
 // exceed the maximum size of the `client` metadata before sending `hello`.
