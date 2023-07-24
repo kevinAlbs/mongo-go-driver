@@ -426,6 +426,7 @@ func TestSessionTimeout(t *testing.T) {
 				Kind:                     description.RSPrimary,
 				SessionTimeoutMinutes:    60,
 				SessionTimeoutMinutesPtr: int64ToPtr(60),
+				Members:                  []address.Address{address.Address("foo").Canonicalize()},
 			},
 		}
 
@@ -433,10 +434,11 @@ func TestSessionTimeout(t *testing.T) {
 		defer cancel()
 
 		desc := description.Server{
-			Addr:                     "foo",
+			Addr:                     address.Address("foo").Canonicalize(),
 			Kind:                     description.RSPrimary,
 			SessionTimeoutMinutes:    30,
 			SessionTimeoutMinutesPtr: int64ToPtr(30),
+			Members:                  []address.Address{address.Address("foo").Canonicalize()},
 		}
 		topo.apply(ctx, desc)
 
