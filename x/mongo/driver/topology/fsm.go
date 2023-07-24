@@ -59,6 +59,7 @@ func (f *fsm) applyFSMSessionTimeout() {
 
 		if server.SessionTimeoutMinutesPtr == nil {
 			// If any data bearing server has a nil timeout, use nil.
+			selectedTimeout = nil
 			break
 		}
 
