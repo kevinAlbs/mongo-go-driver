@@ -486,6 +486,7 @@ func TestSessionTimeout(t *testing.T) {
 		// should update because new timeout is lower
 		desc2 := description.Server{
 			Addr:                     address.Address("bar").Canonicalize(),
+			CanonicalAddr:            address.Address("bar").Canonicalize(),
 			SessionTimeoutMinutes:    20,
 			SessionTimeoutMinutesPtr: int64ToPtr(20),
 			Members:                  []address.Address{address.Address("foo").Canonicalize(), address.Address("bar").Canonicalize()},
