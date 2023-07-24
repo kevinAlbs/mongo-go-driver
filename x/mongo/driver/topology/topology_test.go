@@ -462,12 +462,14 @@ func TestSessionTimeout(t *testing.T) {
 				Kind:                     description.RSPrimary,
 				SessionTimeoutMinutes:    60,
 				SessionTimeoutMinutesPtr: int64ToPtr(60),
+				Members:                  []address.Address{address.Address("foo").Canonicalize(), address.Address("bar").Canonicalize()},
 			},
 			{
 				Addr:                     address.Address("bar").Canonicalize(),
 				Kind:                     description.RSSecondary,
 				SessionTimeoutMinutes:    60,
 				SessionTimeoutMinutesPtr: int64ToPtr(60),
+				Members:                  []address.Address{address.Address("foo").Canonicalize(), address.Address("bar").Canonicalize()},
 			},
 		}
 
@@ -475,7 +477,7 @@ func TestSessionTimeout(t *testing.T) {
 		defer cancel()
 
 		desc1 := description.Server{
-			Addr:                     "foo",
+			Addr:                     address.Address("foo").Canonicalize(),
 			Kind:                     description.RSPrimary,
 			SessionTimeoutMinutes:    30,
 			SessionTimeoutMinutesPtr: int64ToPtr(30),
@@ -483,8 +485,7 @@ func TestSessionTimeout(t *testing.T) {
 		}
 		// should update because new timeout is lower
 		desc2 := description.Server{
-			Addr:                     "bar",
-			Kind:                     description.RSPrimary,
+			Addr:                     address.Address("bar").Canonicalize(),
 			SessionTimeoutMinutes:    20,
 			SessionTimeoutMinutesPtr: int64ToPtr(20),
 			Members:                  []address.Address{address.Address("foo").Canonicalize(), address.Address("bar").Canonicalize()},
