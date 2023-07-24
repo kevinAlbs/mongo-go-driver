@@ -105,7 +105,9 @@ func TestFSMSessionTimeout(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := selectFSMSessionTimeout(test.f, test.s)
+			test.f.apply(test.s)
+			test.f.applyFSMSessionTimeout()
+			got := test.f.SessionTimeoutMinutesPtr
 			gotStr := "nil"
 			wantStr := "nil"
 			if got != nil {
