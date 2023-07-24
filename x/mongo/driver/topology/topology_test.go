@@ -526,7 +526,7 @@ func TestSessionTimeout(t *testing.T) {
 		defer cancel()
 
 		desc1 := description.Server{
-			Addr:                     "foo",
+			Addr:                     address.Address("foo").Canonicalize(),
 			Kind:                     description.RSPrimary,
 			SessionTimeoutMinutes:    20,
 			SessionTimeoutMinutesPtr: int64ToPtr(20),
@@ -534,8 +534,9 @@ func TestSessionTimeout(t *testing.T) {
 		}
 		// should not update because new timeout is higher
 		desc2 := description.Server{
-			Addr:                     "bar",
-			Kind:                     description.RSPrimary,
+			Addr:                     address.Address("bar").Canonicalize(),
+			Kind:                     description.RSSecondary,
+			CanonicalAddr:            address.Address("bar"),
 			SessionTimeoutMinutes:    30,
 			SessionTimeoutMinutesPtr: int64ToPtr(30),
 			Members:                  []address.Address{address.Address("foo").Canonicalize(), address.Address("bar").Canonicalize()},
@@ -574,7 +575,7 @@ func TestSessionTimeout(t *testing.T) {
 		defer cancel()
 
 		desc1 := description.Server{
-			Addr:                     "foo",
+			Addr:                     address.Address("foo").Canonicalize(),
 			Kind:                     description.RSPrimary,
 			SessionTimeoutMinutes:    20,
 			SessionTimeoutMinutesPtr: int64ToPtr(20),
@@ -582,8 +583,9 @@ func TestSessionTimeout(t *testing.T) {
 		}
 		// should not update because not a data bearing server
 		desc2 := description.Server{
-			Addr:                     "bar",
+			Addr:                     address.Address("bar").Canonicalize(),
 			Kind:                     description.Unknown,
+			CanonicalAddr:            address.Address("bar").Canonicalize(),
 			SessionTimeoutMinutes:    10,
 			SessionTimeoutMinutesPtr: int64ToPtr(10),
 			Members:                  []address.Address{address.Address("foo").Canonicalize(), address.Address("bar").Canonicalize()},
@@ -611,15 +613,20 @@ func TestSessionTimeout(t *testing.T) {
 				Kind:                     description.RSPrimary,
 				SessionTimeoutMinutes:    20,
 				SessionTimeoutMinutesPtr: int64ToPtr(20),
+				Members:                  []address.Address{address.Address("one").Canonicalize(), address.Address("two").Canonicalize(), address.Address("three").Canonicalize()},
 			},
 			{
 				// does not support sessions
-				Addr: address.Address("two").Canonicalize(),
-				Kind: description.RSSecondary,
+				Addr:          address.Address("two").Canonicalize(),
+				Kind:          description.RSSecondary,
+				CanonicalAddr: address.Address("two").Canonicalize(),
+				Members:       []address.Address{address.Address("one").Canonicalize(), address.Address("two").Canonicalize(), address.Address("three").Canonicalize()},
 			},
 			{
 				Addr:                     address.Address("three").Canonicalize(),
-				Kind:                     description.RSPrimary,
+				Kind:                     description.RSSecondary,
+				CanonicalAddr:            address.Address("three").Canonicalize(),
+				Members:                  []address.Address{address.Address("one").Canonicalize(), address.Address("two").Canonicalize(), address.Address("three").Canonicalize()},
 				SessionTimeoutMinutes:    60,
 				SessionTimeoutMinutesPtr: int64ToPtr(60),
 			},
@@ -629,8 +636,9 @@ func TestSessionTimeout(t *testing.T) {
 		defer cancel()
 
 		desc := description.Server{
-			Addr:                     address.Address("three"),
+			Addr:                     address.Address("three").Canonicalize(),
 			Kind:                     description.RSSecondary,
+			CanonicalAddr:            address.Address("three").Canonicalize(),
 			SessionTimeoutMinutes:    30,
 			SessionTimeoutMinutesPtr: int64ToPtr(30),
 		}
