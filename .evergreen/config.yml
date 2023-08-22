@@ -115,7 +115,9 @@ functions:
              rm -rf libmongocrypt-all
              echo "fetching build for Windows ... end"
           else
-            git clone https://github.com/mongodb/libmongocrypt --depth=1 --branch $LIBMONGOCRYPT_TAG
+            git clone https://github.com/kevinAlbs/libmongocrypt --depth=1 --branch G2872
+            # Specify a BUILD_VERSION, since libmongocrypt may not compute the correct build version on a non-tagged commit.
+            export ADDITIONAL_CMAKE_FLAGS="-DBUILD_VERSION=1.9.0-pre"
             if ! ( ./libmongocrypt/.evergreen/compile.sh >| output.txt 2>&1 ); then
                 cat output.txt 1>&2
                 exit 1
