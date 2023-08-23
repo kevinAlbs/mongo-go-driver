@@ -359,7 +359,13 @@ functions:
         script: |
           ${PREPARE_SHELL}
           echo "dump ... begin"
-          tar -czvf dump.tar.gz dump.data
+          DATAPATH=$(find . -type f -name "dump.data")
+          if [[ -n "$DATAPATH" ]]; then
+            echo "found path to dump.data: $DATAPATH"
+            tar -czvf dump.tar.gz $DATAPATH
+          else
+            echo "did not find dump.data"
+          fi
           echo "dump ... end"
     - command: s3.put
       params:
