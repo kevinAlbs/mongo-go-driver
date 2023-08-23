@@ -349,7 +349,7 @@ functions:
           ${PREPARE_SHELL}
           sh ${PROJECT_DIRECTORY}/.evergreen/run-tests.sh
 
-  dump-bson-hex:
+  upload-dump:
     - command: shell.exec
       type: test
       params:
@@ -358,9 +358,20 @@ functions:
         add_expansions_to_env: true
         script: |
           ${PREPARE_SHELL}
-          echo "dump_bson_hex ... begin"
-          find . -type f -name "bson_hex.txt" -exec cat {} \;
-          echo "dump_bson_hex ... end"
+          echo "dump ... begin"
+          tar -czvf dump.tar.gz dump.data
+          echo "dump ... end"
+    - command: s3.put
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        local_file: src/go.mongodb.org/mongo-driver/dump.tar.gz
+        remote_file: ${UPLOAD_BUCKET}/${build_variant}/${revision}/${version_id}/${build_id}/logs/${task_id}-${execution}-dump.tar.gz
+        bucket: mciuploads
+        permissions: public-read
+        content_type: ${content_type|application/x-gzip}
+        display_name: "dump.tar.gz"
+        optional: true
 
   send-perf-data:
     - command: perf.send
@@ -1208,7 +1219,7 @@ pre:
   - func: start-cse-servers
 
 post:
-  - func: dump-bson-hex
+  - func: upload-dump
   - command: gotest.parse_files
     params:
       files:
