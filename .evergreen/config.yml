@@ -349,6 +349,19 @@ functions:
           ${PREPARE_SHELL}
           sh ${PROJECT_DIRECTORY}/.evergreen/run-tests.sh
 
+  dump-bson-hex:
+    - command: shell.exec
+      type: test
+      params:
+        shell: "bash"
+        working_dir: src/go.mongodb.org/mongo-driver
+        add_expansions_to_env: true
+        script: |
+          ${PREPARE_SHELL}
+          echo "dump_bson_hex ... begin"
+          find . -type f -name "bson_hex.txt" -exec cat {} \;
+          echo "dump_bson_hex ... end"
+
   send-perf-data:
     - command: perf.send
       params:
@@ -1195,6 +1208,7 @@ pre:
   - func: start-cse-servers
 
 post:
+  - func: dump-bson-hex
   - command: gotest.parse_files
     params:
       files:
