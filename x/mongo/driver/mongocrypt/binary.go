@@ -18,12 +18,16 @@ import (
 // binary is a wrapper type around a mongocrypt_binary_t*
 type binary struct {
 	wrapped *C.mongocrypt_binary_t
+	// `data` points to the wrapped slice of data.
+	// `data` is intended to prevent the Golang garbage collector from freeing the referenced data while `binary` is in use.
+	data *[]byte
 }
 
 // newBinary creates an empty binary instance.
 func newBinary() *binary {
 	return &binary{
 		wrapped: C.mongocrypt_binary_new(),
+		data:    nil,
 	}
 }
 
@@ -35,10 +39,12 @@ func newBinaryFromBytes(data []byte) *binary {
 
 	// We don't need C.CBytes here because data cannot go out of scope. Any mongocrypt function that takes a
 	// mongocrypt_binary_t will make a copy of the data so the data can be garbage collected after calling.
+	// `binary.data` is set to the `&data` to prevent `data` from being garbage collected while `binary` is in use.
 	addr := (*C.uint8_t)(unsafe.Pointer(&data[0])) // uint8_t*
 	dataLen := C.uint32_t(len(data))               // uint32_t
 	return &binary{
 		wrapped: C.mongocrypt_binary_new_from_data(addr, dataLen),
+		data:    &data,
 	}
 }
 
