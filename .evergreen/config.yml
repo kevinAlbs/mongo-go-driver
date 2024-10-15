@@ -347,6 +347,7 @@ functions:
         binary: "bash"
         env:
           SERVERLESS: "serverless"
+          GO_BUILD_TAGS: cse
         args: [*task-runner, setup-test]
     - command: subprocess.exec
       type: test
