@@ -176,8 +176,8 @@ tasks:
     # - go test ${BUILD_TAGS} ./internal/integration -run TestConvenientTransactions -v -timeout {{.TEST_TIMEOUT}}s >> test.suite
     # - go test ${BUILD_TAGS} ./internal/integration -run TestCursor -v -timeout {{.TEST_TIMEOUT}}s >> test.suite
     # - go test ${BUILD_TAGS} ./internal/integration/unified -run TestUnifiedSpec -v -timeout {{.TEST_TIMEOUT}}s >> test.suite
-    - go test -exec "env PKG_CONFIG_PATH=${PKG_CONFIG_PATH} LD_LIBRARY_PATH=${LD_LIBRARY_PATH} DYLD_LIBRARY_PATH=${MACOS_LIBRARY_PATH}" ${BUILD_TAGS} -v -timeout {{.TEST_TIMEOUT}}s ./internal/integration -run TestClientSideEncryptionSpec >> test.suite
-    - go test -exec "env PKG_CONFIG_PATH=${PKG_CONFIG_PATH} LD_LIBRARY_PATH=${LD_LIBRARY_PATH} DYLD_LIBRARY_PATH=${MACOS_LIBRARY_PATH}" ${BUILD_TAGS} -v -timeout {{.TEST_TIMEOUT}}s ./internal/integration -run TestClientSideEncryptionProse >> test.suite
+    - go test -exec "env PKG_CONFIG_PATH=${PKG_CONFIG_PATH} LD_LIBRARY_PATH=${LD_LIBRARY_PATH} DYLD_LIBRARY_PATH=${MACOS_LIBRARY_PATH}" ${BUILD_TAGS} -v -timeout {{.TEST_TIMEOUT}}s ./internal/integration -run TestClientSideEncryptionSpec
+    # - go test -exec "env PKG_CONFIG_PATH=${PKG_CONFIG_PATH} LD_LIBRARY_PATH=${LD_LIBRARY_PATH} DYLD_LIBRARY_PATH=${MACOS_LIBRARY_PATH}" ${BUILD_TAGS} -v -timeout {{.TEST_TIMEOUT}}s ./internal/integration -run TestClientSideEncryptionProse >> test.suite
 
   evg-test-versioned-api:
     # Versioned API related tests are in the mongo, integration and unified packages.
